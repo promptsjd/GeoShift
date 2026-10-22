@@ -6,6 +6,8 @@ export type ActiveModal = 'NONE' | 'HOW_TO_PLAY' | 'LEADERBOARD';
 interface TopBarProps {
   gameState: GameState;
   activeModal: ActiveModal;
+  isMuted: boolean;
+  onToggleMute: () => void;
   onSelectModal: (modal: ActiveModal) => void;
   onPrimaryAction: () => void;
 }
@@ -13,6 +15,8 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   gameState,
   activeModal,
+  isMuted,
+  onToggleMute,
   onSelectModal,
   onPrimaryAction,
 }) => {
@@ -75,6 +79,17 @@ export const TopBar: React.FC<TopBarProps> = ({
           }`}
         >
           Leaderboard
+        </button>
+        <button
+          type="button"
+          onClick={onToggleMute}
+          aria-pressed={!isMuted}
+          aria-label={isMuted ? 'Unmute game sound' : 'Mute game sound'}
+          className={`hover:text-slate-100 transition-colors whitespace-nowrap shrink-0 cursor-pointer pb-0.5 border-b-2 border-transparent ${
+            isMuted ? 'text-slate-500' : 'text-slate-300'
+          }`}
+        >
+          {isMuted ? 'Sound: Off' : 'Sound: On'}
         </button>
       </nav>
 

@@ -227,3 +227,33 @@ export interface LeaderboardEntry {
   modeId: string;
   createdAtISO: string;
 }
+
+export type SoundEventId =
+  | 'SHIFT'
+  | 'JUMP_SINGLE'
+  | 'JUMP_DOUBLE'
+  | 'GAME_OVER';
+
+export interface SoundToneStep {
+  /** Oscillator waveform type (e.g., 'square' for classic 8-bit chiptune) */
+  waveform: OscillatorType;
+  /** Starting frequency in Hz */
+  startFrequencyHz: number;
+  /** Optional ending frequency in Hz for pitch sweeps (defaults to startFrequencyHz) */
+  endFrequencyHz?: number;
+  /** Duration of this tone step in seconds */
+  durationSec: number;
+  /** Delay offset from the start of the sound effect in seconds */
+  startOffsetSec?: number;
+  /** Peak volume gain (0.0 to 1.0) */
+  peakGain: number;
+}
+
+export interface SoundEffectDefinition {
+  id: SoundEventId;
+  label: string;
+  description: string;
+  enabled: boolean;
+  steps: SoundToneStep[];
+}
+

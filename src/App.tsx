@@ -47,6 +47,11 @@ import {
   saveBestScore,
   saveLeaderboardEntry,
 } from './services/leaderboardService';
+import {
+  loadSoundMuted,
+  playSoundEvent,
+  saveSoundMuted,
+} from './services/soundService';
 
 export default function App() {
   // Modular Registry State
@@ -91,6 +96,18 @@ export default function App() {
   const [persistedBestScore, setPersistedBestScore] = useState<number>(() =>
     loadBestScore()
   );
+  const [isMuted, setIsMuted] = useState<boolean>(() => loadSoundMuted());
+  const isMutedRef = useRef<boolean>(isMuted);
+  isMutedRef.current = isMuted;
+
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      isMutedRef.current = next;
+      saveSoundMuted(next);
+      return next;
+    });
+  }, []);
 
   // Initial indices (Green + Circle)
   const initialColorIdx = useMemo(() => {
@@ -278,17 +295,17 @@ export default function App() {
       if (!activeModeProfile.allowColorShift && gameState === 'PLAYING') {
         return;
       }
-      setPlayer((prev) => {
-        const nextIndex = shiftClampedIndex(
-          prev.colorIndex,
-          delta,
-          activeColors.length
-        );
-        if (nextIndex === prev.colorIndex) return prev;
-        const updated = { ...prev, colorIndex: nextIndex };
-        playerRef.current = updated;
-        return updated;
-      });
+      const current = playerRef.current;
+      const nextIndex = shiftClampedIndex(
+        current.colorIndex,
+        delta,
+        activeColors.length
+      );
+      if (nextIndex === current.colorIndex) return;
+
+      playerRef.current = { ...playerRef.current, colorIndex: nextIndex };
+      setPlayer((prev) => ({ ...prev, colorIndex: nextIndex }));
+      playSoundEvent('SHIFT', isMutedRef.current);
     },
     [activeColors.length, activeModeProfile.allowColorShift, gameState]
   );
@@ -298,17 +315,17 @@ export default function App() {
       if (!activeModeProfile.allowShapeShift && gameState === 'PLAYING') {
         return;
       }
-      setPlayer((prev) => {
-        const nextIndex = shiftClampedIndex(
-          prev.shapeIndex,
-          delta,
-          activeShapes.length
-        );
-        if (nextIndex === prev.shapeIndex) return prev;
-        const updated = { ...prev, shapeIndex: nextIndex };
-        playerRef.current = updated;
-        return updated;
-      });
+      const current = playerRef.current;
+      const nextIndex = shiftClampedIndex(
+        current.shapeIndex,
+        delta,
+        activeShapes.length
+      );
+      if (nextIndex === current.shapeIndex) return;
+
+      playerRef.current = { ...playerRef.current, shapeIndex: nextIndex };
+      setPlayer((prev) => ({ ...prev, shapeIndex: nextIndex }));
+      playSoundEvent('SHIFT', isMutedRef.current);
     },
     [activeShapes.length, activeModeProfile.allowShapeShift, gameState]
   );
@@ -317,11 +334,16 @@ export default function App() {
     if (!activeModeProfile.allowJump) {
       return;
     }
-    setPlayer((prev) => {
-      const updated = triggerPlayerJump(prev, physics, performance.now());
+    const current = playerRef.current;
+    const updated = triggerPlayerJump(current, physics, performance.now());
+    if (updated.jumpsUsed > current.jumpsUsed) {
       playerRef.current = updated;
-      return updated;
-    });
+      setPlayer(updated);
+      playSoundEvent(
+        updated.jumpsUsed === 1 ? 'JUMP_SINGLE' : 'JUMP_DOUBLE',
+        isMutedRef.current
+      );
+    }
   }, [activeModeProfile.allowJump, physics]);
 
   // Global Keyboard Controller
@@ -648,6 +670,7 @@ export default function App() {
       }
 
       if (triggeredFailure) {
+        playSoundEvent('GAME_OVER', isMutedRef.current);
         setFailureDiagnostic(triggeredFailure);
         setGameState('GAME_OVER');
         return;
@@ -730,6 +753,8 @@ export default function App() {
       <TopBar
         gameState={gameState}
         activeModal={activeModal}
+        isMuted={isMuted}
+        onToggleMute={handleToggleMute}
         onSelectModal={(modal) => {
           if (modal !== 'NONE' && gameState === 'PLAYING') {
             setGameState(
@@ -772,9 +797,12 @@ export default function App() {
               selectedIndex={player.colorIndex}
               disabled={isColorCarouselDisabled}
               onShiftColor={handleShiftColor}
-              onSelectDirectIndex={(idx) =>
-                setPlayer((prev) => ({ ...prev, colorIndex: idx }))
-              }
+              onSelectDirectIndex={(idx) => {
+                if (idx === playerRef.current.colorIndex) return;
+                playerRef.current = { ...playerRef.current, colorIndex: idx };
+                setPlayer((prev) => ({ ...prev, colorIndex: idx }));
+                playSoundEvent('SHIFT', isMutedRef.current);
+              }}
             />
           </div>
 
@@ -795,9 +823,12 @@ export default function App() {
             activeColor={activeColor}
             disabled={isShapeCarouselDisabled}
             onShiftShape={handleShiftShape}
-            onSelectDirectIndex={(idx) =>
-              setPlayer((prev) => ({ ...prev, shapeIndex: idx }))
-            }
+            onSelectDirectIndex={(idx) => {
+              if (idx === playerRef.current.shapeIndex) return;
+              playerRef.current = { ...playerRef.current, shapeIndex: idx };
+              setPlayer((prev) => ({ ...prev, shapeIndex: idx }));
+              playSoundEvent('SHIFT', isMutedRef.current);
+            }}
           />
 
           {/* Fixed-Camera Horizontal Corridor & State Overlays */}
