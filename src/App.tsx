@@ -190,8 +190,8 @@ export default function App() {
   const launchModeRun = useCallback(
     (targetModeId: RunModeId) => {
       const profile = getModeProfileById(targetModeId);
-      const cIdx = playerRef.current.colorIndex % activeColors.length;
-      const sIdx = playerRef.current.shapeIndex % activeShapes.length;
+      const cIdx = initialColorIdx;
+      const sIdx = initialShapeIdx;
       const lockedColorId = activeColors[cIdx]?.id || activeColors[0].id;
       const lockedShapeId = activeShapes[sIdx]?.id || activeShapes[0].id;
 
@@ -232,13 +232,21 @@ export default function App() {
       setActiveModal('NONE');
       setGameState('PLAYING');
     },
-    [activeColors, activeShapes, buildInitialObstaclesForMode]
+    [
+      activeColors,
+      activeShapes,
+      buildInitialObstaclesForMode,
+      initialColorIdx,
+      initialShapeIdx,
+    ]
   );
 
-  // Continue practicing the current Practice mode for the next 5 obstacles
+  // Continue practicing the current Practice mode with no obstacle limit after the first 5
   const handleContinueCurrentPractice = useCallback(() => {
-    const increment = activeModeProfile.batchObstacleTarget || 5;
-    batchTargetRef.current = scoreRef.current + increment;
+    const initialTarget = activeModeProfile.batchObstacleTarget || 5;
+    if (scoreRef.current >= initialTarget) {
+      batchTargetRef.current = Number.POSITIVE_INFINITY;
+    }
     setPracticeRetryMessage(null);
     setIsProximityPaused(false);
     setGameState('PLAYING');
@@ -325,10 +333,17 @@ export default function App() {
         return;
       }
 
-      // Spacebar continues practicing the same mode when Practice Complete modal is open
+      // Spacebar continues practicing the same mode when Practice window is open
       if (gameState === 'PRACTICE_COMPLETE' && e.code === 'Space') {
         e.preventDefault();
         handleContinueCurrentPractice();
+        return;
+      }
+
+      // Spacebar continues / resumes the game when Game Pause window is open
+      if (gameState === 'PAUSED' && e.code === 'Space') {
+        e.preventDefault();
+        setGameState('PLAYING');
         return;
       }
 
@@ -349,10 +364,21 @@ export default function App() {
       e.preventDefault();
 
       if (action === 'PAUSE') {
-        if (gameState === 'PLAYING') {
-          setGameState('PAUSED');
-        } else if (gameState === 'PAUSED') {
-          setGameState('PLAYING');
+        if (activeModeProfile.isPractice) {
+          if (gameState === 'PLAYING') {
+            setGameState('PRACTICE_COMPLETE');
+          } else if (
+            gameState === 'PRACTICE_COMPLETE' ||
+            gameState === 'PAUSED'
+          ) {
+            handleContinueCurrentPractice();
+          }
+        } else {
+          if (gameState === 'PLAYING') {
+            setGameState('PAUSED');
+          } else if (gameState === 'PAUSED') {
+            setGameState('PLAYING');
+          }
         }
         return;
       }
@@ -383,6 +409,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     activeModal,
+    activeModeProfile.isPractice,
     gameState,
     handleContinueCurrentPractice,
     handleJump,
@@ -691,7 +718,9 @@ export default function App() {
         activeModal={activeModal}
         onSelectModal={(modal) => {
           if (modal !== 'NONE' && gameState === 'PLAYING') {
-            setGameState('PAUSED');
+            setGameState(
+              activeModeProfile.isPractice ? 'PRACTICE_COMPLETE' : 'PAUSED'
+            );
           }
           setActiveModal(modal);
         }}
@@ -699,6 +728,9 @@ export default function App() {
           if (gameState === 'PAUSED') {
             setActiveModal('NONE');
             setGameState('PLAYING');
+          } else if (gameState === 'PRACTICE_COMPLETE') {
+            setActiveModal('NONE');
+            handleContinueCurrentPractice();
           } else {
             launchModeRun('GAME');
           }
@@ -780,6 +812,17 @@ export default function App() {
               scoreSaved={scoreSaved}
               onStartStandardGame={() => launchModeRun('GAME')}
               onOpenPracticeMenu={() => {
+                const defaultPlayer: PlayerEntity = {
+                  colorIndex: initialColorIdx,
+                  shapeIndex: initialShapeIdx,
+                  heightAboveFloor: 0,
+                  velocityY: 0,
+                  jumpsUsed: 0,
+                  isGrounded: true,
+                  lastJumpTimeMs: 0,
+                };
+                playerRef.current = defaultPlayer;
+                setPlayer(defaultPlayer);
                 setPracticeRetryMessage(null);
                 setIsProximityPaused(false);
                 setGameState('PRACTICE_MENU');
@@ -787,6 +830,17 @@ export default function App() {
               onStartPracticeSubMode={handleStartPracticeSubMode}
               onContinueCurrentPractice={handleContinueCurrentPractice}
               onReturnToMainMenu={() => {
+                const defaultPlayer: PlayerEntity = {
+                  colorIndex: initialColorIdx,
+                  shapeIndex: initialShapeIdx,
+                  heightAboveFloor: 0,
+                  velocityY: 0,
+                  jumpsUsed: 0,
+                  isGrounded: true,
+                  lastJumpTimeMs: 0,
+                };
+                playerRef.current = defaultPlayer;
+                setPlayer(defaultPlayer);
                 setPracticeRetryMessage(null);
                 setIsProximityPaused(false);
                 setGameState('TITLE_MENU');

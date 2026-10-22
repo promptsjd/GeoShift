@@ -150,10 +150,11 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
     );
   }
 
-  // 3. Practice Batch Complete Modal (After clearing 5 obstacles)
+  // 3. Practice Window (Shown after clearing first 5 obstacles or when pressing P in Practice mode)
   if (gameState === 'PRACTICE_COMPLETE') {
     const currentSubMode = activeModeProfile.practiceSubMode || 'SHAPE';
     const remainingModes = getRemainingPracticeModes(currentSubMode);
+    const initialTarget = activeModeProfile.batchObstacleTarget || 5;
 
     return (
       <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/86 backdrop-blur-[2px] p-5">
@@ -161,10 +162,12 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
           <div className="flex items-baseline justify-between gap-4 pb-3 border-b border-slate-800">
             <div>
               <h2 className="text-xl font-bold text-slate-100 font-display">
-                {activeModeProfile.shortLabel} Practice Cleared
+                {score >= initialTarget
+                  ? `${activeModeProfile.shortLabel} Practice Cleared`
+                  : `${activeModeProfile.shortLabel} Practice Paused`}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Press Spacebar to continue practicing {activeModeProfile.shortLabel}, or switch to another mode below.
+                Press Spacebar to continue practicing {activeModeProfile.shortLabel} with no limit (press P anytime to reopen this window), or switch modes below.
               </p>
             </div>
             <span className="text-sm font-mono-tabular font-bold text-emerald-400 shrink-0">
@@ -179,7 +182,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
               onClick={onContinueCurrentPractice}
               className="w-full py-2.5 px-4 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-semibold text-xs transition-colors cursor-pointer"
             >
-              Continue Practicing {activeModeProfile.shortLabel} (Press Space)
+              Continue Practicing {activeModeProfile.shortLabel} (Press Spacebar)
             </button>
           </div>
 
@@ -228,41 +231,48 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
     );
   }
 
-  // 4. Paused Overlay
+  // 4. Game Paused Overlay (Shown when pressing P during Game)
   if (gameState === 'PAUSED') {
     return (
       <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/80 backdrop-blur-[2px] p-6">
         <div className="w-full max-w-md rounded-xl bg-slate-900 border border-slate-800 p-6 text-center shadow-2xl">
           <h2 className="text-xl font-bold text-slate-100 font-display">
-            {activeModeProfile.isPractice
-              ? `${activeModeProfile.name} Paused`
-              : 'Run Paused'}
+            Game Paused
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             Cleared: <span className="font-mono-tabular text-slate-200 font-semibold">{score}</span>
             {!activeModeProfile.isPractice && ` · Speed Tier ${speedLevel}`}
           </p>
-          <div className="flex items-center justify-center gap-3 mt-5">
+
+          <div className="flex flex-col gap-2.5 mt-5">
             <button
               type="button"
               onClick={onResumeGame}
-              className="px-4 py-2 text-xs font-semibold text-slate-950 bg-slate-100 hover:bg-white rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="w-full py-2.5 px-4 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
             >
-              Resume (P)
+              Continue (Press Spacebar)
             </button>
-            {activeModeProfile.isPractice && (
-              <button
-                type="button"
-                onClick={onOpenPracticeMenu}
-                className="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              >
-                Practice Menu
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onStartStandardGame}
+              className="w-full py-2.5 px-4 text-xs font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Restart Game
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={onOpenPracticeMenu}
+              className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Practice Menu
+            </button>
             <button
               type="button"
               onClick={onReturnToMainMenu}
-              className="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer whitespace-nowrap"
             >
               Main Menu
             </button>
