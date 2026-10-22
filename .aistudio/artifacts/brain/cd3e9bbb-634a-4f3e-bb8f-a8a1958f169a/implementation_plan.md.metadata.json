@@ -1,6 +1,6 @@
 {
-  "summary":  "Updated implementation plan changing the Color and Shape selectors from rotating centered loops to fixed-position strips with hard stops at boundaries and in-place active scaling.",
-  "updatedAt":  "2026-10-22T10:40:25.653280501Z",
+  "summary":  "Implementation plan to configure relative base asset paths in Vite and add an automated GitHub Actions deployment workflow so GeoShift builds and renders properly on GitHub Pages.",
+  "updatedAt":  "2026-10-22T11:50:32.678153497Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

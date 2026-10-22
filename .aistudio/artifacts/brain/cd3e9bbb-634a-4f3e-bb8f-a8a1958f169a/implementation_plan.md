@@ -1,76 +1,84 @@
-# GeoShift — Fixed-Position Shape & Color Selectors with Hard Stops
+# GeoShift — GitHub Pages Automated Build & Relative Asset Deployment
 
-This update replaces the rotating loop behavior of the **Color** and **Shape** selectors with **fixed-position strips and hard boundary stops**, improving spatial muscle memory and peripheral readability during high-speed runs and Practice modes.
+This update resolves the blank page issue on GitHub Pages by configuring relative asset resolution (`./`) in the bundler and adding an automated GitHub Actions build-and-deploy pipeline so the compiled production application is served instead of raw TypeScript source files.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following selector interaction decision has been confirmed:
+> The following deployment decisions have been confirmed:
 
-- **Confirmed Decision — Fixed Positions with Hard Stops, Enlarging in Place**:
-  - **Fixed Spatial Order**: Every shape in the left vertical bar and every color in the top horizontal bar stays permanently in its own slot rather than rotating toward the center.
-  - **In-Place Active Scaling**: Whichever shape or color is currently selected enlarges at its own fixed position (`70px` vs. `40px` for shapes; `58px` vs. `38px` for colors) within a stable fixed-dimension slot container so neighboring items never shift or jitter.
-  - **Hard Boundary Stops (No Loop)**: Pressing `Up`/`W` at the top shape (`index 0`) or `Down`/`S` at the bottom shape (`index N - 1`) stops at the boundary without wrapping around. Pressing `Left`/`A` at the leftmost color (`index 0`) or `Right`/`D` at the rightmost color (`index N - 1`) similarly stops at the boundary.
+- **Confirmed Decision 1 — Automated GitHub Actions Build Workflow**:
+  - Instead of serving raw uncompiled `.tsx` source files from the repository root, a GitHub Actions workflow will automatically install dependencies, compile the production bundle on every push to `main`, and publish the built static output to GitHub Pages.
+  - **One-Time GitHub Repo Setting Change**: In your GitHub repository under **Settings → Pages → Build and deployment → Source**, switch from **Deploy from a branch** to **GitHub Actions**.
+- **Confirmed Decision 2 — Relative Base Paths (`./`)**:
+  - The bundler will emit relative asset URLs (`./assets/...`) and use a relative module entry script (`./src/main.tsx`), ensuring the game loads cleanly whether hosted at `https://<username>.github.io/<repo-name>/` or at a root domain.
 
 ---
 
 ### 1. Overview & Core Concept
 
 - **What It Does**:
-  - Anchors each shape and color to a permanent visual coordinate on screen.
-  - Clamps index navigation to `[0, length - 1]` so players can build reliable muscle memory and rapidly tap toward either end of the strip without overshooting or wrapping to the opposite side.
-- **Target Audience / Persona**: Desktop and laptop players building fast, repeatable spatial reflexes across both **Practice** modes (**Shape**, **Color**, **Jump**, **Full**) and the main **Game**.
-- **Key Value**: Eliminates distracting list rotation in peripheral vision while preserving strict separation of concerns in the selector utility layer.
+  - Configures the build configuration with `base: './'` so all compiled JavaScript, CSS, and static assets resolve relative to the current page URL.
+  - Updates the HTML entry point script tag from an absolute root path to a relative path (`./src/main.tsx`).
+  - Adds a pre-configured GitHub Actions Pages workflow that triggers on pushes to `main` (or manual dispatch), compiles the TypeScript/React bundle, and deploys the artifact to GitHub Pages.
+- **Target Audience / Persona**: Players accessing the live hosted GeoShift web game via GitHub Pages on desktop and laptop browsers.
+- **Key Value**: Eliminates the blank white/dark screen caused by browsers rejecting raw `.tsx` source code and broken root-relative asset URLs on GitHub Pages project URLs.
 
 ---
 
 ### 2. User Experience & Visual Design
 
 - **Key User Flows**:
-  1. **Top Horizontal Color Strip**:
-     - Renders all active colors in their fixed horizontal order using the dedicated non-playable **Rounded Square** swatch shape.
-     - The selected color renders enlarged (`58px`) in its own slot while unselected colors remain at `38px`.
-     - Pressing `←`/`A` moves selection left until reaching the first color, where further `←`/`A` presses do nothing. Pressing `→`/`D` moves selection right until reaching the last color, where further `→`/`D` presses do nothing.
-  2. **Left Vertical Shape Strip**:
-     - Renders all active playable shapes (Triangle at top, then Diamond, Circle, Pentagon, Star at bottom) in their fixed vertical order, tinted in the player's currently selected color.
-     - The selected shape renders enlarged (`70px`) in its own slot while unselected shapes remain at `40px`.
-     - Pressing `↑`/`W` moves selection up until reaching the top shape; pressing `↓`/`S` moves selection down until reaching the bottom shape.
+  1. **Developer Push to `main`**:
+     - Pushing code to the `main` branch automatically triggers the GitHub Actions build and deployment pipeline.
+     - Once the workflow completes (~45 seconds), the live GitHub Pages URL serves the compiled, minified GeoShift application.
+  2. **Player Visiting the Live GitHub Pages URL**:
+     - The browser loads the compiled `index.html`, fetches the bundled JS and Tailwind CSS via relative paths, and immediately renders the `#07080D` obsidian GeoShift arena, fixed-position color/shape selectors, and interactive title menu.
 - **Visual Identity & Theme**:
-  - Each item slot reserves a consistent bounding box so scaling the active shape or color in place feels crisp and never pushes adjacent items out of alignment.
+  - Preserves the complete GeoShift visual design—dark `#07080D` backdrop, `#229954` emerald HUD accents, `Outfit` / `Plus Jakarta Sans` / `JetBrains Mono` typography, and 60fps HTML5 Canvas corridor rendering—without any visual regressions.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1 — Isolated Clamped Index Utility (`shiftClampedIndex`)**
-  - *Chosen Approach*: Update the selector utility module to provide a clamped index function `Math.max(0, Math.min(length - 1, currentIndex + delta))` alongside ordered slot mapping where `isSelected = (index === selectedIndex)`.
-  - *Why*: Because selector state logic is already decoupled from physics, obstacle spawning, and collision evaluation, changing from circular modulo arithmetic to clamped linear indexing requires zero changes to the game engine or Practice modes.
+- **Decision 1 — Portable Relative Base Path (`base: './'`)**
+  - *Chosen Approach*: Configure `base: './'` in the bundler config rather than hardcoding a specific repository name.
+  - *Why*: Works seamlessly on any GitHub Pages repository subpath (`/<repo-name>/`), custom domain (`/`), or local preview server without requiring future config edits if the repository is renamed.
+  - *Alternatives Considered*: Hardcoding `base: '/repo-name/'` was passed over because it breaks if the repository name changes or if previewed at a root path.
+- **Decision 2 — Official GitHub Pages Artifact Action Pipeline**
+  - *Chosen Approach*: Use the official `actions/configure-pages`, `actions/upload-pages-artifact`, and `actions/deploy-pages` workflow on Node 22.
+  - *Why*: Keeps the `main` branch clean of compiled build artifacts while providing automatic deployment on every push.
 
 ---
 
 ### 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-- **Architecture & Component Diagram**:
+- **Architecture & Deployment Pipeline Diagram**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     SELECTOR UTILITY LAYER                              │
-│  • shiftClampedIndex(currentIndex, delta, length) -> [0 .. length - 1]  │
-│  • getFixedSelectorSlots(items, activeIndex) -> Fixed slots in place    │
-└───────────────────┬─────────────────────────────────┬───────────────────┘
-                    │                                 │
-                    ▼                                 ▼
-┌───────────────────────────────────────┐ ┌───────────────────────────────┐
-│ Top Horizontal Color Strip            │ │ Left Vertical Shape Strip     │
-│ • Fixed order: [0 .. N-1]             │ │ • Fixed order: [0 .. M-1]     │
-│ • Active color enlarges in its own    │ │ • Active shape enlarges in    │
-│   slot (58px vs 38px)                 │ │   its own slot (70px vs 40px) │
-│ • Hard stops at Left (0) & Right (N-1)│ │ • Hard stops at Top & Bottom  │
-└───────────────────────────────────────┘ └───────────────────────────────┘
+│                        GITHUB REPOSITORY (main)                         │
+│  • Relative HTML Entry (./src/main.tsx)                                 │
+│  • Bundler Config (base: './' for portable subpath asset resolution)    │
+└───────────────────────────────────┬─────────────────────────────────────┘
+                                    │ Push to main
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     GITHUB ACTIONS BUILD PIPELINE                       │
+│  1. Checkout repository & setup Node.js 22 with npm cache               │
+│  2. Install dependencies & run production build                         │
+│  3. Package compiled dist output as GitHub Pages artifact               │
+└───────────────────────────────────┬─────────────────────────────────────┘
+                                    │ Deploy Pages Artifact
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      LIVE GITHUB PAGES ENVIRONMENT                      │
+│  • Serves compiled HTML + bundled JS/CSS at /<repo-name>/               │
+│  • Renders GeoShift 60fps Canvas Arena & LocalStorage Leaderboard       │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Interactive Component & State Mapping**:
-  - **Keyboard Input (`←`/`→`, `A`/`D`, `↑`/`↓`, `W`/`S`)**: Invokes `shiftClampedIndex(currentIndex, ±1, length)`. When `currentIndex` is already `0` and `delta` is `-1` (or `length - 1` and `delta` is `+1`), the index remains unchanged.
-  - **Direct Click Affordance**: Clicking any shape or color slot directly selects that fixed index (`onSelectDirectIndex(slot.originalIndex)`).
+  - **Static Asset & Font Loading**: Google Fonts (`Outfit`, `Plus Jakarta Sans`, `JetBrains Mono`) and bundled JS/CSS load over HTTPS via relative paths, initializing the React root and `localStorage` leaderboard service on GitHub Pages.
