@@ -42,7 +42,9 @@ import {
 import {
   clearLeaderboard,
   getLastPlayerName,
+  loadBestScore,
   loadLeaderboard,
+  saveBestScore,
   saveLeaderboardEntry,
 } from './services/leaderboardService';
 
@@ -85,6 +87,9 @@ export default function App() {
   >(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(() =>
     loadLeaderboard()
+  );
+  const [persistedBestScore, setPersistedBestScore] = useState<number>(() =>
+    loadBestScore()
   );
 
   // Initial indices (Green + Circle)
@@ -172,11 +177,18 @@ export default function App() {
 
   const bestScore = useMemo(() => {
     const topStored = leaderboard.length > 0 ? leaderboard[0].score : 0;
-    return Math.max(
-      topStored,
-      activeModeProfile.isPractice ? 0 : score
-    );
-  }, [leaderboard, score, activeModeProfile.isPractice]);
+    const currentGameScore = activeModeProfile.isPractice ? 0 : score;
+    return Math.max(topStored, persistedBestScore, currentGameScore);
+  }, [leaderboard, persistedBestScore, score, activeModeProfile.isPractice]);
+
+  // Automatically persist any new high score for the session and browser
+  // even if the player does not manually click "Save Score" on Game Over
+  useEffect(() => {
+    if (bestScore > persistedBestScore) {
+      const saved = saveBestScore(bestScore);
+      setPersistedBestScore(saved);
+    }
+  }, [bestScore, persistedBestScore]);
 
   useEffect(() => {
     setPlayer((prev) => ({
@@ -697,11 +709,13 @@ export default function App() {
       modeId: 'Game',
     });
     setLeaderboard(updated);
+    setPersistedBestScore(loadBestScore());
     setScoreSaved(true);
   };
 
   const handleClearLeaderboard = () => {
     setLeaderboard(clearLeaderboard());
+    setPersistedBestScore(0);
   };
 
   const activeColor = activeColors[player.colorIndex] || activeColors[0];
@@ -742,11 +756,11 @@ export default function App() {
         id="arena"
         className="flex-1 flex flex-col items-center justify-center px-8 py-6 max-w-[1360px] w-full mx-auto"
       >
-        {/* Top HUD Strip: Score on Left, Centered Color Carousel in Middle */}
+        {/* Top HUD Strip: Score on Left, Centered Color Carousel in Middle, Best Score on Right */}
         <div className="w-full max-w-[1008px] grid grid-cols-3 items-center mb-6">
           {/* Score Readout */}
           <div className="flex items-center justify-start">
-            <div className="text-4xl font-medium font-display text-[#229954] tracking-tight">
+            <div className="text-4xl font-medium font-display text-[#229954] tracking-tight font-mono-tabular whitespace-nowrap">
               Score {score}
             </div>
           </div>
@@ -764,8 +778,12 @@ export default function App() {
             />
           </div>
 
-          {/* Empty right column to keep ColorCarousel dead-center */}
-          <div />
+          {/* Best Score Readout (Right of Color Carousel) */}
+          <div className="flex items-center justify-end">
+            <div className="text-4xl font-medium font-display text-[#229954] tracking-tight font-mono-tabular whitespace-nowrap">
+              Best {bestScore}
+            </div>
+          </div>
         </div>
 
         {/* Central Play Area: Left Vertical Shape Carousel + Corridor Viewport */}
