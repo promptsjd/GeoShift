@@ -1,0 +1,6 @@
+{
+  "name": "GeoShift",
+  "description": "A minimalist flat-vector desktop reflex game where players shift shape, color, and jump elevation simultaneously to clear progressive obstacle gates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
