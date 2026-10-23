@@ -1,4 +1,5 @@
-import { Point2D, ShapeDefinition } from './types';
+import { ColorDefinition, Point2D, ShapeDefinition } from './types';
+import { ARENA_VISUAL_CONFIG } from './visualConfig';
 
 /**
  * Helper to compute regular polygon vertices centered at (cx, cy)
@@ -66,6 +67,82 @@ function drawPolygonOnCanvas(ctx: CanvasRenderingContext2D, points: Point2D[]): 
 }
 
 /**
+ * Renders a Playable or Target Shape with Tactile Arcade Studio dimensional bevels,
+ * outer rim highlight, inner facet core, rotation, and squash-and-stretch deformation.
+ */
+export function drawTactileShapeOnCanvas(options: {
+  ctx: CanvasRenderingContext2D;
+  shape: ShapeDefinition;
+  color: ColorDefinition;
+  cx: number;
+  cy: number;
+  radius: number;
+  rotationRad?: number;
+  scaleX?: number;
+  scaleY?: number;
+  alpha?: number;
+  showDirectionalCore?: boolean;
+}): void {
+  const {
+    ctx,
+    shape,
+    color,
+    cx,
+    cy,
+    radius,
+    rotationRad = 0,
+    scaleX = 1,
+    scaleY = 1,
+    alpha = 1,
+    showDirectionalCore = true,
+  } = options;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  if (scaleX !== 1 || scaleY !== 1) {
+    ctx.scale(scaleX, scaleY);
+  }
+  if (rotationRad !== 0) {
+    ctx.rotate(rotationRad);
+  }
+
+  // 1. Studio Depth Shadow & Outer Rim Glow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+  ctx.shadowBlur = ARENA_VISUAL_CONFIG.shapeShadowBlurPx;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = color.hex;
+  shape.drawCanvas(ctx, 0, 0, radius);
+  ctx.restore();
+
+  // 2. Crisp Bevel Rim Stroke (uses color.strokeHex)
+  ctx.save();
+  ctx.strokeStyle = color.strokeHex;
+  ctx.lineWidth = 2.2;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = color.hex;
+  shape.drawCanvas(ctx, 0, 0, radius);
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Inner Dimensional Bevel Facet (Top-Left Specular Bias that rotates with the shape)
+  if (showDirectionalCore) {
+    ctx.save();
+    const facetAlpha =
+      color.innerFacetAlpha ?? ARENA_VISUAL_CONFIG.shapeInnerBevelAlpha;
+    ctx.globalAlpha = alpha * facetAlpha;
+    ctx.fillStyle = color.innerFacetHex || '#FFFFFF';
+    const innerRadius = radius * ARENA_VISUAL_CONFIG.shapeInnerBevelScale;
+    const offset = -radius * 0.09;
+    shape.drawCanvas(ctx, offset, offset, innerRadius);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/**
  * Dedicated Non-Playable Swatch Shape for the Top Color Selector.
  * Requirement: "The shape of the colors will remain consistent and we will pick a shape that is not in the shape list."
  */
@@ -104,7 +181,6 @@ export const SHAPE_REGISTRY: ShapeDefinition[] = [
     isPlayable: true,
     enabledByDefault: true,
     drawCanvas: (ctx, cx, cy, radius) => {
-      // Slightly offset cy downward so the visual centroid feels balanced
       const pts: Point2D[] = [
         { x: cx, y: cy - radius * 0.95 },
         { x: cx + radius * 0.95, y: cy + radius * 0.85 },

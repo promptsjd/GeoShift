@@ -1,6 +1,15 @@
 import React from 'react';
-import { COLOR_REGISTRY } from '../config/colorRegistry';
-import { COLOR_SWATCH_SHAPE, SHAPE_REGISTRY } from '../config/shapeRegistry';
+import { COLOR_REGISTRY, getColorById } from '../config/colorRegistry';
+import {
+  COLOR_SWATCH_SHAPE,
+  SHAPE_REGISTRY,
+} from '../config/shapeRegistry';
+import {
+  FacetedButton,
+  FacetedKeycap,
+  FacetedWindow,
+  TactileShapeSvg,
+} from './TactileUI';
 
 interface HowToPlayModalProps {
   onClose: () => void;
@@ -8,10 +17,9 @@ interface HowToPlayModalProps {
 }
 
 /**
- * Visual, At-a-Glance Rules & Controls Modal
- * Uses actual vector shapes, color swatches, and wall silhouettes on the
- * signature deep indigo-slate surface (#242058) so players understand the
- * controls in a single glance.
+ * Tactile Arcade Studio Rules & Controls Modal
+ * Uses `TactileShapeSvg` for every shape and color swatch so all 5 colors
+ * and all 5 shapes display crisp outer borders and inner concentric facets.
  */
 export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
   onClose,
@@ -21,170 +29,162 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
     (s) => s.isPlayable && s.enabledByDefault
   );
   const defaultColors = COLOR_REGISTRY.filter((c) => c.enabledByDefault);
-  const emeraldHex =
-    defaultColors.find((c) => c.id === 'green')?.hex || '#166E3D';
-
-  const swatchCenterPath = COLOR_SWATCH_SHAPE.getSvgPath(50);
-  const swatchSidePath = COLOR_SWATCH_SHAPE.getSvgPath(34);
+  const emeraldColor = getColorById('green');
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/82 backdrop-blur-xs p-6">
-      <div className="w-full max-w-4xl rounded-2xl bg-[#242058] border border-slate-700/70 p-8 shadow-2xl text-slate-100">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/84 backdrop-blur-xs p-6">
+      <FacetedWindow maxWidthClass="max-w-4xl">
         {/* Header & 1-Line Gameplay Summary */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/15">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-white font-display">
-              How to Play
+            <h2 className="text-4xl font-bold tracking-wider text-white font-display">
+              Rules & Controls
             </h2>
-            <p className="text-sm text-slate-200/90 mt-1.5">
+            <p className="text-sm text-slate-200 mt-1">
               Match the approaching gate’s shape, color, and jump height before reaching the wall.
             </p>
           </div>
 
-          <button
-            type="button"
+          <FacetedButton
+            variant="slate"
+            size="sm"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-200 hover:text-white bg-[#07080D]/60 hover:bg-[#07080D] border border-slate-700/80 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            className="text-base font-bold whitespace-nowrap shrink-0"
           >
             Close
-          </button>
+          </FacetedButton>
         </div>
 
-        {/* 3-Column Visual Diagram: Shape | Color | Jump */}
-        <div className="grid grid-cols-1 md:grid-cols-12 items-center gap-6 my-8 pt-6 border-t border-white/10">
+        {/* 3-Column Visual Diagram: Shape | Color | Jump (Top-Aligned Headings on Same Horizontal Line) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 items-stretch gap-6 my-6">
           {/* Column 1: Switch Shape */}
           <div className="md:col-span-4 flex flex-col items-center">
-            <h3 className="text-lg font-semibold text-white font-display mb-4">
+            <h3 className="text-2xl font-bold text-white font-display tracking-wider mb-5">
               Shape
             </h3>
 
-            <div className="flex items-center gap-5">
-              {/* Vertical stack of the 5 playable shapes in Emerald Green */}
-              <div className="flex flex-col items-center gap-2.5">
-                {defaultShapes.map((shape) => {
-                  const isCircle = shape.id === 'circle';
-                  const size = isCircle ? 58 : 34;
-                  return (
-                    <svg
-                      key={shape.id}
-                      width={size}
-                      height={size}
-                      viewBox={`0 0 ${size} ${size}`}
-                      className="overflow-visible"
-                    >
-                      <path
-                        d={shape.getSvgPath(size)}
-                        fill={emeraldHex}
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  );
-                })}
+            <div className="flex-1 flex items-center justify-center gap-5">
+              {/* Vertical stack of the 5 playable shapes in Emerald Green with inner facets */}
+              <div className="relative rounded-2xl bg-[#0B0F1A] border-2 border-[#384766] p-1.5">
+                <div className="rounded-xl bg-[#141A2C] border border-[#4F638C]/40 p-2 flex flex-col items-center gap-2">
+                  {defaultShapes.map((shape) => {
+                    const isCircle = shape.id === 'circle';
+                    const size = isCircle ? 50 : 34;
+                    return (
+                      <div
+                        key={shape.id}
+                        className={`p-1.5 rounded-lg flex items-center justify-center ${
+                          isCircle ? 'hud-slot-active' : 'opacity-90'
+                        }`}
+                      >
+                        <TactileShapeSvg
+                          shape={shape}
+                          color={emeraldColor}
+                          size={size}
+                          isActive={isCircle}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Symbolic Key Prompts */}
-              <div className="flex flex-col gap-3 text-xs font-mono-tabular text-slate-100">
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-1.5">
-                  <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                    W
-                  </kbd>
-                  <span className="text-slate-400">/</span>
-                  <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                    ↑
-                  </kbd>
+                  <FacetedKeycap label="W" />
+                  <span className="text-slate-400 font-bold">/</span>
+                  <FacetedKeycap label="↑" />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                    S
-                  </kbd>
-                  <span className="text-slate-400">/</span>
-                  <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                    ↓
-                  </kbd>
+                  <FacetedKeycap label="S" />
+                  <span className="text-slate-400 font-bold">/</span>
+                  <FacetedKeycap label="↓" />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Column 2: Switch Color */}
-          <div className="md:col-span-4 flex flex-col items-center md:border-x md:border-white/15 md:px-6 py-4">
-            <h3 className="text-lg font-semibold text-white font-display mb-6">
+          {/* Column 2: Switch Color (All 5 Swatches Rendered with Inner Facets) */}
+          <div className="md:col-span-4 flex flex-col items-center md:border-x md:border-white/15 md:px-6">
+            <h3 className="text-2xl font-bold text-white font-display tracking-wider mb-5">
               Color
             </h3>
 
-            {/* Horizontal row of the 5 color swatches */}
-            <div className="flex items-center justify-center gap-2.5">
-              {defaultColors.map((color) => {
-                const isGreen = color.id === 'green';
-                const size = isGreen ? 50 : 34;
-                const path = isGreen ? swatchCenterPath : swatchSidePath;
-                return (
-                  <svg
-                    key={color.id}
-                    width={size}
-                    height={size}
-                    viewBox={`0 0 ${size} ${size}`}
-                    className="overflow-visible shrink-0"
-                  >
-                    <path d={path} fill={color.hex} />
-                  </svg>
-                );
-              })}
-            </div>
-
-            {/* Symbolic Key Prompts */}
-            <div className="flex items-center justify-between w-full max-w-[230px] mt-5 text-xs font-mono-tabular text-slate-100">
-              <div className="flex items-center gap-1.5">
-                <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                  A
-                </kbd>
-                <span className="text-slate-400">/</span>
-                <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                  ←
-                </kbd>
+            <div className="flex-1 flex flex-col items-center justify-center w-full">
+              {/* Horizontal row of the 5 color swatches with inner facets */}
+              <div className="relative rounded-2xl bg-[#0B0F1A] border-2 border-[#384766] p-1.5">
+                <div className="rounded-xl bg-[#141A2C] border border-[#4F638C]/40 p-2 flex items-center justify-center gap-2">
+                  {defaultColors.map((color) => {
+                    const isGreen = color.id === 'green';
+                    const size = isGreen ? 48 : 36;
+                    return (
+                      <div
+                        key={color.id}
+                        className={`p-1 rounded-lg flex items-center justify-center ${
+                          isGreen ? 'hud-slot-active' : 'opacity-95'
+                        }`}
+                      >
+                        <TactileShapeSvg
+                          shape={COLOR_SWATCH_SHAPE}
+                          color={color}
+                          size={size}
+                          isActive={isGreen}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                  D
-                </kbd>
-                <span className="text-slate-400">/</span>
-                <kbd className="px-2 py-1 rounded bg-[#07080D]/80 border border-white/15 font-semibold">
-                  →
-                </kbd>
+              {/* Symbolic Key Prompts */}
+              <div className="flex items-center justify-between w-full max-w-[230px] mt-5">
+                <div className="flex items-center gap-1.5">
+                  <FacetedKeycap label="A" />
+                  <span className="text-slate-400 font-bold">/</span>
+                  <FacetedKeycap label="←" />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <FacetedKeycap label="D" />
+                  <span className="text-slate-400 font-bold">/</span>
+                  <FacetedKeycap label="→" />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Column 3: Jump & Double Jump */}
           <div className="md:col-span-4 flex flex-col items-center">
-            <h3 className="text-lg font-semibold text-white font-display mb-4">
+            <h3 className="text-2xl font-bold text-white font-display tracking-wider mb-5">
               Jump
             </h3>
 
-            <div className="flex items-end justify-center gap-7">
-              {/* Single Jump Wall */}
-              <div className="flex flex-col items-center">
-                <div className="w-14 h-14 bg-[#07080D] border border-white/15" />
-                <div className="mt-3 text-center">
-                  <kbd className="px-2.5 py-1 text-xs font-mono-tabular font-semibold rounded bg-[#07080D]/80 border border-white/15 text-slate-100">
-                    Space
-                  </kbd>
-                  <div className="text-xs text-slate-200 mt-1.5 font-medium">
-                    Jump
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex items-end justify-center gap-7">
+                {/* Single Jump Wall */}
+                <div className="flex flex-col items-center">
+                  <div className="relative w-14 h-14 rounded-md bg-[#080B12] border-2 border-[#384766] p-1.5 shadow-lg">
+                    <div className="w-full h-full rounded-xs bg-[#182238] border border-white/10" />
+                  </div>
+                  <div className="mt-3 text-center">
+                    <FacetedKeycap label="Space" />
+                    <div className="text-sm font-display font-bold tracking-wide text-slate-200 mt-1.5">
+                      Jump
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Double Jump Wall */}
-              <div className="flex flex-col items-center">
-                <div className="w-14 h-28 bg-[#07080D] border border-white/15" />
-                <div className="mt-3 text-center">
-                  <kbd className="px-2.5 py-1 text-xs font-mono-tabular font-semibold rounded bg-[#07080D]/80 border border-white/15 text-slate-100">
-                    2× Space
-                  </kbd>
-                  <div className="text-xs text-slate-200 mt-1.5 font-medium">
-                    Double Jump
+                {/* Double Jump Wall */}
+                <div className="flex flex-col items-center">
+                  <div className="relative w-14 h-28 rounded-md bg-[#080B12] border-2 border-[#384766] p-1.5 shadow-lg">
+                    <div className="w-full h-full rounded-xs bg-[#182238] border border-white/10" />
+                  </div>
+                  <div className="mt-3 text-center">
+                    <FacetedKeycap label="2× Space" />
+                    <div className="text-sm font-display font-bold tracking-wide text-slate-200 mt-1.5">
+                      Double Jump
+                    </div>
                   </div>
                 </div>
               </div>
@@ -193,19 +193,20 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
         </div>
 
         {/* Footer CTA */}
-        <div className="pt-4 border-t border-white/10 flex justify-end">
-          <button
-            type="button"
+        <div className="pt-4 border-t border-white/15 flex justify-end">
+          <FacetedButton
+            variant="emerald"
+            size="md"
             onClick={() => {
               onClose();
               onStartGame();
             }}
-            className="px-5 py-2.5 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            className="text-lg font-bold whitespace-nowrap shrink-0"
           >
             Start Game
-          </button>
+          </FacetedButton>
         </div>
-      </div>
+      </FacetedWindow>
     </div>
   );
 };

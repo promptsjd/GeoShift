@@ -1,7 +1,7 @@
 /**
  * Core Domain Types & Interfaces for GeoShift
  * Designed with strict separation of concerns so shapes, colors, tiers,
- * controls, and game/practice modes can be extended or modified independently.
+ * controls, visual themes, and per-shape animations can be extended or modified independently.
  */
 
 export type GameState =
@@ -28,6 +28,10 @@ export interface ColorDefinition {
   name: string;
   hex: string;
   strokeHex: string;
+  /** Color of the inner concentric shape facet for dimensional contrast */
+  innerFacetHex: string;
+  /** Opacity (0..1) of the inner concentric shape facet */
+  innerFacetAlpha: number;
   /** Whether enabled by default in standard rules */
   enabledByDefault: boolean;
 }
@@ -54,6 +58,82 @@ export interface ShapeDefinition {
    * Returns an SVG path string centered inside a [0..size, 0..size] viewBox
    */
   getSvgPath: (size: number) => string;
+}
+
+/**
+ * Decoupled Per-Shape Animation & Squeeze/Rotation Configuration
+ * Allows tuning single-jump spin, double-jump spin, takeoff stretch,
+ * landing squeeze-and-rebound, and shift pop per shape with zero hardcoding.
+ */
+export interface SquashStretchKeyframe {
+  /** Horizontal scale multiplier at peak deformation (e.g., 0.84 on takeoff, 1.24 on landing) */
+  scaleX: number;
+  /** Vertical scale multiplier at peak deformation (e.g., 1.18 on takeoff, 0.78 on landing) */
+  scaleY: number;
+  /** Duration of the deformation and elastic recovery in milliseconds */
+  durationMs: number;
+}
+
+export interface ShapeAnimationProfile {
+  shapeId: string;
+  /** Number of full 360-degree turns completed during a single jump (e.g., 1 = 360°, 2 = 720°) */
+  singleJumpRotations: number;
+  /** Number of full 360-degree turns completed during a double jump (e.g., 2 = 720°) */
+  doubleJumpRotations: number;
+  /** Rotation direction multiplier: 1 for clockwise, -1 for counter-clockwise */
+  rotationDirection: 1 | -1;
+  /** Elastic stretch applied immediately when jumping (takeoff squeeze/stretch) */
+  takeoffDeformation: SquashStretchKeyframe;
+  /** Elastic squeeze and harmonic rebound applied when landing on the corridor floor */
+  landingDeformation: SquashStretchKeyframe & {
+    /** Damping ratio for harmonic landing settle (higher = settles faster) */
+    damping: number;
+    /** Number of elastic oscillations during landing recovery */
+    oscillations: number;
+  };
+  /** Proportional vertical stretch factor driven by mid-air vertical velocity */
+  airborneVelocityStretchFactor: number;
+  /** Scale pulse applied when the player shifts into this shape or shifts color */
+  shiftPulseScale: number;
+  /** Duration of the shape/color shift pop in milliseconds */
+  shiftPulseDurationMs: number;
+  /** Whether to render an inner rotating specular bevel core (gives circles visible spin cues) */
+  showDirectionalBevelCore: boolean;
+}
+
+/**
+ * Computed 60fps Visual Transform for the Player Entity
+ * Kept strictly separate from physical hitbox coordinates so visual flair
+ * never alters collision fairness.
+ */
+export interface PlayerVisualTransform {
+  rotationRad: number;
+  scaleX: number;
+  scaleY: number;
+  landingImpactProgress: number; // 0..1 when landing ripple is active, 0 otherwise
+}
+
+/**
+ * Declarative Arena & Tactile Studio Visual Configuration
+ */
+export interface ArenaVisualConfig {
+  corridorTopHex: string;
+  corridorBottomHex: string;
+  gridLineColor: string;
+  gridSpacingPx: number;
+  floorDeckHeightPx: number;
+  floorSurfaceHex: string;
+  floorHighlightHex: string;
+  wallFillHex: string;
+  wallInnerPanelHex: string;
+  wallBevelHighlightColor: string;
+  wallBevelShadowColor: string;
+  wallCornerRadiusPx: number;
+  shapeShadowBlurPx: number;
+  shapeInnerBevelScale: number;
+  shapeInnerBevelAlpha: number;
+  enableJumpMotionTrail: boolean;
+  motionTrailSteps: number;
 }
 
 export interface WallGeometryConfig {
@@ -168,8 +248,18 @@ export interface PlayerEntity {
   velocityY: number;
   jumpsUsed: number;
   isGrounded: boolean;
-  /** Timestamp of last jump for double-jump visual indicator */
+  /** Timestamp of last jump for takeoff stretch & spin interpolation */
   lastJumpTimeMs: number;
+  /** Timestamp when player last touched down on the floor (for landing squeeze) */
+  lastLandedTimeMs?: number;
+  /** Timestamp when player last shifted color or shape (for tactile pop animation) */
+  lastShiftTimeMs?: number;
+  /** Starting rotation angle (radians) at the moment the current jump was triggered */
+  jumpStartRotationRad?: number;
+  /** Target rotation angle (radians) to reach upon completing the current jump arc */
+  targetJumpRotationRad?: number;
+  /** Estimated total airborne duration (seconds) for the active jump phase */
+  expectedFlightDurationSec?: number;
 }
 
 export type FailureType =
@@ -256,4 +346,3 @@ export interface SoundEffectDefinition {
   enabled: boolean;
   steps: SoundToneStep[];
 }
-

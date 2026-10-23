@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
+import { getColorById } from '../config/colorRegistry';
 import {
   getRemainingPracticeModes,
   PRACTICE_MODE_PROFILES,
 } from '../config/difficultyConfig';
+import { COLOR_SWATCH_SHAPE, getShapeById } from '../config/shapeRegistry';
 import {
   FailureDiagnostic,
   GameModeProfile,
   GameState,
   PracticeSubModeId,
 } from '../config/types';
+import {
+  FacetedButton,
+  FacetedWindow,
+  TactileShapeSvg,
+} from './TactileUI';
 
 interface ArenaOverlaysProps {
   gameState: GameState;
@@ -29,11 +36,43 @@ interface ArenaOverlaysProps {
   onOpenLeaderboard: () => void;
 }
 
+/**
+ * Helper to return a representative shape & color emblem for each Practice Sub-Mode
+ */
+function getPracticeSubModeEmblem(subMode: PracticeSubModeId) {
+  switch (subMode) {
+    case 'SHAPE':
+      return {
+        shape: getShapeById('star'),
+        color: getColorById('green'),
+        variant: 'emerald' as const,
+      };
+    case 'COLOR':
+      return {
+        shape: COLOR_SWATCH_SHAPE,
+        color: getColorById('cyan'),
+        variant: 'cyan' as const,
+      };
+    case 'JUMP':
+      return {
+        shape: getShapeById('triangle'),
+        color: getColorById('yellow'),
+        variant: 'indigo' as const,
+      };
+    case 'FULL':
+    default:
+      return {
+        shape: getShapeById('diamond'),
+        color: getColorById('purple'),
+        variant: 'slate' as const,
+      };
+  }
+}
+
 export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
   gameState,
   activeModeProfile,
   score,
-  bestScore,
   speedLevel,
   failureDiagnostic,
   defaultPlayerName,
@@ -57,95 +96,141 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
     return null;
   }
 
-  // 1. Main Start Screen: Only "Game" and "Practice"
+  // 1. Main Start Screen: Dual-Layer Faceted Window + Faceted Action Cards
   if (gameState === 'TITLE_MENU') {
+    const heroGreen = getColorById('green');
+    const heroCyan = getColorById('cyan');
+    const heroYellow = getColorById('yellow');
+
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/82 backdrop-blur-[2px] p-6">
-        <div className="w-full max-w-lg rounded-xl bg-slate-900/95 border border-slate-800 p-7 shadow-2xl text-center">
-          <h1 className="text-3xl font-bold text-slate-100 font-display tracking-tight">
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/82 backdrop-blur-[3px] p-6">
+        <FacetedWindow maxWidthClass="max-w-lg" className="text-center">
+          {/* Decorative Bevelled Geometric Triad */}
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <TactileShapeSvg
+              shape={getShapeById('triangle')}
+              color={heroCyan}
+              size={30}
+            />
+            <TactileShapeSvg
+              shape={getShapeById('circle')}
+              color={heroGreen}
+              size={38}
+            />
+            <TactileShapeSvg
+              shape={getShapeById('star')}
+              color={heroYellow}
+              size={30}
+            />
+          </div>
+
+          <h1 className="text-5xl font-bold text-white font-display tracking-wider">
             GeoShift
           </h1>
-          <p className="text-sm text-slate-300 mt-2 leading-relaxed">
-            Shift color, shape, and vertical jump position to pass approaching obstacle gates.
+          <p className="text-sm text-slate-200 mt-2 leading-relaxed max-w-md mx-auto">
+            Shift color, shape, and vertical jump height to clear approaching geometric gates.
           </p>
 
           <div className="grid grid-cols-2 gap-4 mt-7">
-            <button
-              type="button"
+            <FacetedButton
+              variant="emerald"
+              size="lg"
               onClick={onStartStandardGame}
-              className="flex flex-col items-center justify-center p-5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 transition-colors cursor-pointer group"
             >
-              <span className="text-lg font-bold font-display">Game</span>
-              <span className="text-xs font-medium text-slate-900 mt-1">
-                Start Progressive Run
-              </span>
-            </button>
+              <div className="flex flex-col items-center text-center py-1">
+                <span className="text-3xl font-bold font-display tracking-wider">
+                  Game
+                </span>
+                <span className="text-sm font-medium font-display tracking-wide text-emerald-100 mt-0.5">
+                  Start Progressive Run
+                </span>
+              </div>
+            </FacetedButton>
 
-            <button
-              type="button"
+            <FacetedButton
+              variant="indigo"
+              size="lg"
               onClick={onOpenPracticeMenu}
-              className="flex flex-col items-center justify-center p-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 transition-colors cursor-pointer"
             >
-              <span className="text-lg font-bold font-display">Practice</span>
-              <span className="text-xs font-medium text-slate-300 mt-1">
-                Shape · Color · Jump · Full
-              </span>
-            </button>
+              <div className="flex flex-col items-center text-center py-1">
+                <span className="text-3xl font-bold font-display tracking-wider">
+                  Practice
+                </span>
+                <span className="text-sm font-medium font-display tracking-wide text-indigo-100 mt-0.5">
+                  Shape · Color · Jump · Full
+                </span>
+              </div>
+            </FacetedButton>
           </div>
-        </div>
+        </FacetedWindow>
       </div>
     );
   }
 
-  // 2. Practice Mode Selector: Shape, Color, Jump, Full
+  // 2. Practice Mode Selector: Shape, Color, Jump, Full (All with Inner Facets & Tactile Emblems)
   if (gameState === 'PRACTICE_MENU') {
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/86 backdrop-blur-[2px] p-5">
-        <div className="w-full max-w-2xl rounded-xl bg-slate-900/95 border border-slate-800 p-6 shadow-2xl">
-          <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-slate-800">
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/85 backdrop-blur-[3px] p-5">
+        <FacetedWindow maxWidthClass="max-w-2xl">
+          <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-white/15">
             <div>
-              <h2 className="text-xl font-bold text-slate-100 font-display">
+              <h2 className="text-3xl font-bold text-white font-display tracking-wider">
                 Select Practice Mode
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Clear 5 obstacles in any mode to master each skill step-by-step
+              <p className="text-xs text-slate-300 mt-0.5">
+                Clear 5 obstacles in any mode to master each reflex dimension step-by-step
               </p>
             </div>
-            <button
-              type="button"
+            <FacetedButton
+              variant="slate"
+              size="sm"
               onClick={onReturnToMainMenu}
-              className="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="text-base font-bold whitespace-nowrap shrink-0"
             >
               Main Menu
-            </button>
+            </FacetedButton>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-4">
+          <div className="grid grid-cols-2 gap-3.5 mt-4">
             {PRACTICE_MODE_PROFILES.map((prof) => {
               const subMode = prof.practiceSubMode!;
+              const emblem = getPracticeSubModeEmblem(subMode);
+
               return (
-                <button
+                <FacetedButton
                   key={prof.id}
-                  type="button"
+                  variant={emblem.variant}
+                  size="md"
                   onClick={() => onStartPracticeSubMode(subMode)}
-                  className="text-left p-4 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-sky-400/70 transition-colors cursor-pointer"
+                  className="text-left"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-base font-bold text-slate-100 font-display">
-                      {prof.shortLabel}
-                    </span>
-                    <span className="text-xs font-mono-tabular text-sky-400">
-                      5 Obstacles
-                    </span>
+                  <div className="w-full flex items-start gap-3.5 py-0.5">
+                    <div className="mt-0.5 shrink-0">
+                      <TactileShapeSvg
+                        shape={emblem.shape}
+                        color={emblem.color}
+                        size={38}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-2xl font-bold text-white font-display tracking-wider">
+                          {prof.shortLabel}
+                        </span>
+                        <span className="text-sm font-mono-tabular font-bold text-white/90">
+                          5 Gates
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/85 font-sans font-normal mt-1 leading-snug">
+                        {prof.description}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                    {prof.description}
-                  </p>
-                </button>
+                </FacetedButton>
               );
             })}
           </div>
-        </div>
+        </FacetedWindow>
       </div>
     );
   }
@@ -157,76 +242,81 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
     const initialTarget = activeModeProfile.batchObstacleTarget || 5;
 
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/86 backdrop-blur-[2px] p-5">
-        <div className="w-full max-w-xl rounded-xl bg-slate-900/95 border border-slate-800 p-6 shadow-2xl">
-          <div className="flex items-baseline justify-between gap-4 pb-3 border-b border-slate-800">
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/85 backdrop-blur-[3px] p-5">
+        <FacetedWindow maxWidthClass="max-w-xl">
+          <div className="flex items-baseline justify-between gap-4 pb-3.5 border-b border-white/15">
             <div>
-              <h2 className="text-xl font-bold text-slate-100 font-display">
+              <h2 className="text-3xl font-bold text-white font-display tracking-wider">
                 {score >= initialTarget
                   ? `${activeModeProfile.shortLabel} Practice Cleared`
                   : `${activeModeProfile.shortLabel} Practice Paused`}
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                 Press Spacebar to continue practicing {activeModeProfile.shortLabel} with no limit (press P anytime to reopen this window), or switch modes below.
               </p>
             </div>
-            <span className="text-sm font-mono-tabular font-bold text-emerald-400 shrink-0">
+            <span className="text-lg font-mono-tabular font-bold text-emerald-400 shrink-0">
               {score} Cleared
             </span>
           </div>
 
           {/* Primary Action: Continue Practicing Same Mode (Spacebar) */}
           <div className="mt-4">
-            <button
-              type="button"
+            <FacetedButton
+              variant="cyan"
+              size="md"
+              fullWidth
               onClick={onContinueCurrentPractice}
-              className="w-full py-2.5 px-4 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-semibold text-xs transition-colors cursor-pointer"
+              className="text-lg font-bold whitespace-nowrap"
             >
               Continue Practicing {activeModeProfile.shortLabel} (Press Spacebar)
-            </button>
+            </FacetedButton>
           </div>
 
           {/* Remaining 3 Practice Modes */}
           <div className="mt-4">
-            <div className="text-xs font-medium text-slate-400 mb-2">
+            <div className="text-sm font-bold font-display tracking-wide text-slate-300 mb-2">
               Or Practice Another Skill:
             </div>
             <div className="grid grid-cols-3 gap-2.5">
               {remainingModes.map((mode) => (
-                <button
+                <FacetedButton
                   key={mode.id}
-                  type="button"
+                  variant="slate"
+                  size="sm"
                   onClick={() =>
                     mode.practiceSubMode &&
                     onStartPracticeSubMode(mode.practiceSubMode)
                   }
-                  className="py-2.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-100 transition-colors cursor-pointer whitespace-nowrap"
+                  className="text-base font-bold whitespace-nowrap"
                 >
                   Practice {mode.shortLabel}
-                </button>
+                </FacetedButton>
               ))}
             </div>
           </div>
 
           {/* Direct Start Game & Main Menu Options */}
-          <div className="flex items-center justify-between gap-3 mt-5 pt-3.5 border-t border-slate-800">
-            <button
-              type="button"
+          <div className="flex items-center justify-between gap-3 mt-5 pt-3.5 border-t border-white/15">
+            <FacetedButton
+              variant="slate"
+              size="sm"
               onClick={onReturnToMainMenu}
-              className="px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+              className="text-base font-bold whitespace-nowrap"
             >
               Main Menu
-            </button>
+            </FacetedButton>
 
-            <button
-              type="button"
+            <FacetedButton
+              variant="emerald"
+              size="sm"
               onClick={onStartStandardGame}
-              className="px-5 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="text-base font-bold whitespace-nowrap shrink-0"
             >
               Start Game Now
-            </button>
+            </FacetedButton>
           </div>
-        </div>
+        </FacetedWindow>
       </div>
     );
   }
@@ -234,50 +324,56 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
   // 4. Game Paused Overlay (Shown when pressing P during Game)
   if (gameState === 'PAUSED') {
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/80 backdrop-blur-[2px] p-6">
-        <div className="w-full max-w-md rounded-xl bg-slate-900 border border-slate-800 p-6 text-center shadow-2xl">
-          <h2 className="text-xl font-bold text-slate-100 font-display">
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/82 backdrop-blur-[3px] p-6">
+        <FacetedWindow maxWidthClass="max-w-md" className="text-center">
+          <h2 className="text-3xl font-bold text-white font-display tracking-wider">
             Game Paused
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Cleared: <span className="font-mono-tabular text-slate-200 font-semibold">{score}</span>
+          <p className="text-sm text-slate-300 mt-1">
+            Cleared: <span className="font-mono-tabular text-emerald-400 font-bold">{score}</span>
             {!activeModeProfile.isPractice && ` · Speed Tier ${speedLevel}`}
           </p>
 
-          <div className="flex flex-col gap-2.5 mt-5">
-            <button
-              type="button"
+          <div className="flex flex-col gap-3 mt-5">
+            <FacetedButton
+              variant="emerald"
+              size="md"
+              fullWidth
               onClick={onResumeGame}
-              className="w-full py-2.5 px-4 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              className="text-lg font-bold whitespace-nowrap"
             >
               Continue (Press Spacebar)
-            </button>
-            <button
-              type="button"
+            </FacetedButton>
+            <FacetedButton
+              variant="slate"
+              size="md"
+              fullWidth
               onClick={onStartStandardGame}
-              className="w-full py-2.5 px-4 text-xs font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              className="text-lg font-bold whitespace-nowrap"
             >
               Restart Game
-            </button>
+            </FacetedButton>
           </div>
 
-          <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-800">
-            <button
-              type="button"
+          <div className="flex items-center justify-between gap-3 mt-4 pt-3.5 border-t border-white/15">
+            <FacetedButton
+              variant="indigo"
+              size="sm"
               onClick={onOpenPracticeMenu}
-              className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+              className="text-base font-bold whitespace-nowrap"
             >
               Practice Menu
-            </button>
-            <button
-              type="button"
+            </FacetedButton>
+            <FacetedButton
+              variant="slate"
+              size="sm"
               onClick={onReturnToMainMenu}
-              className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+              className="text-base font-bold whitespace-nowrap"
             >
               Main Menu
-            </button>
+            </FacetedButton>
           </div>
-        </div>
+        </FacetedWindow>
       </div>
     );
   }
@@ -299,36 +395,42 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
   ];
 
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07080D]/86 backdrop-blur-[2px] p-4">
-      <div className="w-full max-w-md rounded-xl bg-slate-900/95 border border-slate-800 p-6 shadow-2xl">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-4">
-          <h2 className="text-2xl font-bold text-slate-100 font-display">
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/85 backdrop-blur-[3px] p-4">
+      <FacetedWindow maxWidthClass="max-w-md">
+        <div className="flex items-center justify-between gap-4 border-b border-white/15 pb-3.5">
+          <h2 className="text-4xl font-bold text-white font-display tracking-wider">
             Game Over
           </h2>
           <div className="text-right shrink-0">
-            <div className="text-xs text-slate-400">Final Score</div>
-            <div className="text-2xl font-bold font-mono-tabular text-emerald-400">
+            <div className="text-xs font-display tracking-wide text-slate-300">
+              Final Score
+            </div>
+            <div className="text-3xl font-bold font-mono-tabular text-emerald-400">
               {score}
             </div>
           </div>
         </div>
 
-        {/* Simple Tick / Cross list for Color, Shape, Jump */}
-        <div className="grid grid-cols-3 gap-3 my-5">
+        {/* Faceted Diagnostic Cards for Color, Shape, Jump */}
+        <div className="grid grid-cols-3 gap-3 my-4">
           {checkItems.map((item) => (
             <div
               key={item.label}
-              className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-sm font-semibold ${
+              className={`relative overflow-hidden flex items-center justify-between px-3.5 py-2.5 rounded-xl border-2 font-display text-lg font-bold tracking-wide ${
                 item.matched
-                  ? 'bg-slate-950/60 border-slate-800 text-slate-200'
-                  : 'bg-red-950/30 border-red-800/70 text-red-200'
+                  ? 'bg-[#166E3D] border-[#4ADE80] text-white'
+                  : 'bg-[#991B1B] border-[#FCA5A5] text-white'
               }`}
             >
-              <span>{item.label}</span>
               <span
-                className={`text-base font-bold font-mono-tabular ${
-                  item.matched ? 'text-emerald-400' : 'text-red-400'
+                aria-hidden="true"
+                className={`pointer-events-none absolute top-[2.5px] left-[2.5px] right-[5.5px] bottom-[5.5px] rounded-lg ${
+                  item.matched ? 'bg-[#86EFAC]/30' : 'bg-[#FECACA]/25'
                 }`}
+              />
+              <span className="relative z-10">{item.label}</span>
+              <span
+                className="relative z-10 text-lg font-bold font-mono-tabular"
                 aria-label={item.matched ? 'Matched' : 'Missed'}
               >
                 {item.matched ? '✓' : '✕'}
@@ -338,7 +440,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
         </div>
 
         {/* Save to localStorage Leaderboard, Practice & Play Again */}
-        <div className="flex flex-col gap-3 pt-4 border-t border-slate-800">
+        <div className="flex flex-col gap-3 pt-3.5 border-t border-white/15">
           {!scoreSaved ? (
             <form
               onSubmit={(e) => {
@@ -354,46 +456,50 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
                 maxLength={15}
                 placeholder="Name"
                 aria-label="Player name for leaderboard"
-                className="flex-1 px-3 py-2 text-xs bg-slate-950 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-sky-400 font-mono-tabular"
+                className="flex-1 px-3.5 py-2 text-sm bg-[#0B0F1A] border-2 border-[#384766] rounded-xl text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-400 font-mono-tabular"
               />
-              <button
+              <FacetedButton
                 type="submit"
-                className="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                variant="cyan"
+                size="sm"
+                className="text-base font-bold whitespace-nowrap shrink-0"
               >
                 Save Score
-              </button>
+              </FacetedButton>
             </form>
           ) : (
-            <div className="flex items-center justify-between text-xs text-emerald-400 py-1">
-              <span>Score Saved</span>
+            <div className="flex items-center justify-between text-sm font-display tracking-wide text-emerald-400 py-1">
+              <span>Score Saved to Leaderboard</span>
               <button
                 type="button"
                 onClick={onOpenLeaderboard}
-                className="underline hover:text-emerald-300 cursor-pointer"
+                className="underline hover:text-emerald-300 cursor-pointer font-bold"
               >
                 View Top 10
               </button>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
+          <div className="grid grid-cols-2 gap-3">
+            <FacetedButton
+              variant="indigo"
+              size="md"
               onClick={onOpenPracticeMenu}
-              className="py-2.5 px-4 text-xs font-medium text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              className="text-lg font-bold whitespace-nowrap"
             >
               Practice
-            </button>
-            <button
-              type="button"
+            </FacetedButton>
+            <FacetedButton
+              variant="emerald"
+              size="md"
               onClick={onStartStandardGame}
-              className="py-2.5 px-4 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              className="text-lg font-bold whitespace-nowrap"
             >
-              Play Again (Press Spacebar)
-            </button>
+              Play Again (Space)
+            </FacetedButton>
           </div>
         </div>
-      </div>
+      </FacetedWindow>
     </div>
   );
 };

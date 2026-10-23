@@ -2,13 +2,22 @@
 
 @layer base {
   :root {
-    --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
+    --font-display: 'Barlow Condensed', system-ui, -apple-system, sans-serif;
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+    --bg-studio: #06080E;
+    --surface-hud: #0D111C;
+    --surface-recessed: #080B12;
+    --border-hud: #232D42;
+    --accent-emerald: #10B981;
+    --accent-cyan: #38BDF8;
   }
 
   body {
-    background-color: #07080D;
+    background-color: var(--bg-studio);
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
+      radial-gradient(circle at 50% 100%, rgba(36, 32, 88, 0.25) 0%, transparent 65%);
     color: #F8FAFC;
     font-family: var(--font-sans);
     overflow-x: hidden;
@@ -18,10 +27,45 @@
 
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
+    letter-spacing: 0.02em;
+    text-wrap: balance;
   }
 
   .font-mono-tabular {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Tactile Arcade Studio HUD Frame Utilities */
+.hud-window {
+  background: linear-gradient(180deg, rgba(18, 24, 38, 0.97) 0%, rgba(10, 14, 23, 0.98) 100%);
+  border: 1px solid #28334A;
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
+}
+
+.hud-dock {
+  background: linear-gradient(180deg, #0D121E 0%, #080B13 100%);
+  border: 1px solid #222B3E;
+  box-shadow:
+    0 12px 28px -8px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.hud-slot-active {
+  background: radial-gradient(circle at 50% 35%, rgba(56, 189, 248, 0.16), rgba(15, 23, 42, 0.85));
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  box-shadow:
+    0 0 18px -4px rgba(56, 189, 248, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.hud-keycap {
+  background: linear-gradient(180deg, #171F30 0%, #0D121D 100%);
+  border: 1px solid #2E3A52;
+  box-shadow:
+    0 2px 0 0 #070A10,
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
 }

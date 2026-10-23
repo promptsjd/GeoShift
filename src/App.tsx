@@ -31,6 +31,7 @@ import {
   PracticeSubModeId,
   RunModeId,
 } from './config/types';
+import { getShapeAnimationProfile } from './config/visualConfig';
 import { shiftClampedIndex } from './engine/carouselUtils';
 import { evaluatePlayerObstacleInteraction } from './engine/collisionEvaluator';
 import { createNextObstacle } from './engine/obstacleSpawner';
@@ -55,14 +56,14 @@ import {
 
 export default function App() {
   // Modular Registry State
-  const [enabledColorIds, setEnabledColorIds] = useState<string[]>(() =>
+  const [enabledColorIds] = useState<string[]>(() =>
     COLOR_REGISTRY.filter((c) => c.enabledByDefault).map((c) => c.id)
   );
-  const [enabledShapeIds, setEnabledShapeIds] = useState<string[]>(() =>
+  const [enabledShapeIds] = useState<string[]>(() =>
     SHAPE_REGISTRY.filter((s) => s.isPlayable && s.enabledByDefault).map((s) => s.id)
   );
   const [runModeId, setRunModeId] = useState<RunModeId>('GAME');
-  const [showJumpGuides, setShowJumpGuides] = useState<boolean>(true);
+  const [showJumpGuides] = useState<boolean>(true);
 
   const activeColors = useMemo(
     () => getActiveColors(enabledColorIds),
@@ -128,6 +129,8 @@ export default function App() {
     jumpsUsed: 0,
     isGrounded: true,
     lastJumpTimeMs: 0,
+    lastLandedTimeMs: 0,
+    lastShiftTimeMs: 0,
   }));
 
   const buildInitialObstaclesForMode = useCallback(
@@ -199,7 +202,6 @@ export default function App() {
   }, [leaderboard, persistedBestScore, score, activeModeProfile.isPractice]);
 
   // Automatically persist any new high score for the session and browser
-  // even if the player does not manually click "Save Score" on Game Over
   useEffect(() => {
     if (bestScore > persistedBestScore) {
       const saved = saveBestScore(bestScore);
@@ -232,6 +234,8 @@ export default function App() {
         jumpsUsed: 0,
         isGrounded: true,
         lastJumpTimeMs: 0,
+        lastLandedTimeMs: 0,
+        lastShiftTimeMs: 0,
       };
 
       const initialObs = buildInitialObstaclesForMode(
@@ -303,8 +307,14 @@ export default function App() {
       );
       if (nextIndex === current.colorIndex) return;
 
-      playerRef.current = { ...playerRef.current, colorIndex: nextIndex };
-      setPlayer((prev) => ({ ...prev, colorIndex: nextIndex }));
+      const nowMs = performance.now();
+      const updated = {
+        ...playerRef.current,
+        colorIndex: nextIndex,
+        lastShiftTimeMs: nowMs,
+      };
+      playerRef.current = updated;
+      setPlayer(updated);
       playSoundEvent('SHIFT', isMutedRef.current);
     },
     [activeColors.length, activeModeProfile.allowColorShift, gameState]
@@ -323,8 +333,14 @@ export default function App() {
       );
       if (nextIndex === current.shapeIndex) return;
 
-      playerRef.current = { ...playerRef.current, shapeIndex: nextIndex };
-      setPlayer((prev) => ({ ...prev, shapeIndex: nextIndex }));
+      const nowMs = performance.now();
+      const updated = {
+        ...playerRef.current,
+        shapeIndex: nextIndex,
+        lastShiftTimeMs: nowMs,
+      };
+      playerRef.current = updated;
+      setPlayer(updated);
       playSoundEvent('SHIFT', isMutedRef.current);
     },
     [activeShapes.length, activeModeProfile.allowShapeShift, gameState]
@@ -335,7 +351,14 @@ export default function App() {
       return;
     }
     const current = playerRef.current;
-    const updated = triggerPlayerJump(current, physics, performance.now());
+    const activeShape = activeShapes[current.shapeIndex] || activeShapes[0];
+    const animProfile = getShapeAnimationProfile(activeShape.id);
+    const updated = triggerPlayerJump(
+      current,
+      physics,
+      performance.now(),
+      animProfile
+    );
     if (updated.jumpsUsed > current.jumpsUsed) {
       playerRef.current = updated;
       setPlayer(updated);
@@ -344,7 +367,7 @@ export default function App() {
         isMutedRef.current
       );
     }
-  }, [activeModeProfile.allowJump, physics]);
+  }, [activeModeProfile.allowJump, activeShapes, physics]);
 
   // Global Keyboard Controller
   useEffect(() => {
@@ -466,8 +489,13 @@ export default function App() {
       lastTimeMs = nowMs;
       const dt = Math.min(0.05, Math.max(0.001, rawDt));
 
-      // 1. Step Player Jump Physics
-      const nextPlayer = stepPlayerPhysics(playerRef.current, physics, dt);
+      // 1. Step Player Jump Physics & Landing Detection
+      const nextPlayer = stepPlayerPhysics(
+        playerRef.current,
+        physics,
+        dt,
+        nowMs
+      );
       playerRef.current = nextPlayer;
 
       const currentPlayerColor =
@@ -595,6 +623,7 @@ export default function App() {
           velocityY: 0,
           jumpsUsed: 0,
           isGrounded: true,
+          lastLandedTimeMs: nowMs,
         };
         playerRef.current = resetPlayer;
         setPlayer(resetPlayer);
@@ -690,39 +719,6 @@ export default function App() {
     physics,
   ]);
 
-  // Registry Modification Handlers
-  const handleToggleColorId = (id: string) => {
-    setEnabledColorIds((prev) => {
-      if (prev.includes(id)) {
-        if (prev.length <= 2) return prev;
-        return prev.filter((item) => item !== id);
-      }
-      return [...prev, id];
-    });
-  };
-
-  const handleToggleShapeId = (id: string) => {
-    setEnabledShapeIds((prev) => {
-      if (prev.includes(id)) {
-        if (prev.length <= 2) return prev;
-        return prev.filter((item) => item !== id);
-      }
-      return [...prev, id];
-    });
-  };
-
-  const handleResetRegistryDefaults = () => {
-    setEnabledColorIds(
-      COLOR_REGISTRY.filter((c) => c.enabledByDefault).map((c) => c.id)
-    );
-    setEnabledShapeIds(
-      SHAPE_REGISTRY.filter((s) => s.isPlayable && s.enabledByDefault).map(
-        (s) => s.id
-      )
-    );
-    setShowJumpGuides(true);
-  };
-
   const handleSaveScore = (playerName: string) => {
     const updated = saveLeaderboardEntry({
       playerName,
@@ -748,7 +744,7 @@ export default function App() {
     gameState === 'PLAYING' && !activeModeProfile.allowShapeShift;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#07080D] text-slate-100">
+    <div className="min-h-screen flex flex-col bg-[#06080E] text-slate-100">
       {/* 3-Zone Top Bar Contract */}
       <TopBar
         gameState={gameState}
@@ -783,10 +779,21 @@ export default function App() {
       >
         {/* Top HUD Strip: Score on Left, Centered Color Carousel in Middle, Best Score on Right */}
         <div className="w-full max-w-[1008px] grid grid-cols-3 items-center mb-6">
-          {/* Score Readout */}
+          {/* Score Readout with Inner Facet */}
           <div className="flex items-center justify-start">
-            <div className="text-4xl font-medium font-display text-[#229954] tracking-tight font-mono-tabular whitespace-nowrap">
-              Score {score}
+            <div className="relative overflow-hidden rounded-2xl bg-[#0B0F1A] border-2 border-[#384766] px-6 py-2.5 shadow-[0_12px_28px_-8px_rgba(0,0,0,0.8)]">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute top-[3px] left-[3px] right-[7px] bottom-[7px] rounded-xl bg-[#1E293B]/65 border border-white/10"
+              />
+              <div className="relative z-10 flex items-baseline gap-3">
+                <span className="text-2xl font-bold font-display text-slate-200 tracking-wider">
+                  Score
+                </span>
+                <span className="text-3xl font-bold font-mono-tabular text-emerald-400 whitespace-nowrap">
+                  {score}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -799,23 +806,40 @@ export default function App() {
               onShiftColor={handleShiftColor}
               onSelectDirectIndex={(idx) => {
                 if (idx === playerRef.current.colorIndex) return;
-                playerRef.current = { ...playerRef.current, colorIndex: idx };
-                setPlayer((prev) => ({ ...prev, colorIndex: idx }));
+                const nowMs = performance.now();
+                const updated = {
+                  ...playerRef.current,
+                  colorIndex: idx,
+                  lastShiftTimeMs: nowMs,
+                };
+                playerRef.current = updated;
+                setPlayer(updated);
                 playSoundEvent('SHIFT', isMutedRef.current);
               }}
             />
           </div>
 
-          {/* Best Score Readout (Right of Color Carousel) */}
+          {/* Best Score Readout with Inner Facet (Right of Color Carousel) */}
           <div className="flex items-center justify-end">
-            <div className="text-4xl font-medium font-display text-[#229954] tracking-tight font-mono-tabular whitespace-nowrap">
-              Best {bestScore}
+            <div className="relative overflow-hidden rounded-2xl bg-[#0B0F1A] border-2 border-[#384766] px-6 py-2.5 shadow-[0_12px_28px_-8px_rgba(0,0,0,0.8)]">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute top-[3px] left-[3px] right-[7px] bottom-[7px] rounded-xl bg-[#1E293B]/65 border border-white/10"
+              />
+              <div className="relative z-10 flex items-baseline gap-3">
+                <span className="text-2xl font-bold font-display text-slate-200 tracking-wider">
+                  Best
+                </span>
+                <span className="text-3xl font-bold font-mono-tabular text-emerald-400 whitespace-nowrap">
+                  {bestScore}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Central Play Area: Left Vertical Shape Carousel + Corridor Viewport */}
-        <div className="flex items-center justify-center gap-8 w-full">
+        <div className="flex items-center justify-center gap-7 w-full">
           {/* Left Vertical Shape Selector (All shapes rendered in user's selected color) */}
           <ShapeCarousel
             shapes={activeShapes}
@@ -825,8 +849,14 @@ export default function App() {
             onShiftShape={handleShiftShape}
             onSelectDirectIndex={(idx) => {
               if (idx === playerRef.current.shapeIndex) return;
-              playerRef.current = { ...playerRef.current, shapeIndex: idx };
-              setPlayer((prev) => ({ ...prev, shapeIndex: idx }));
+              const nowMs = performance.now();
+              const updated = {
+                ...playerRef.current,
+                shapeIndex: idx,
+                lastShiftTimeMs: nowMs,
+              };
+              playerRef.current = updated;
+              setPlayer(updated);
               playSoundEvent('SHIFT', isMutedRef.current);
             }}
           />
@@ -869,6 +899,8 @@ export default function App() {
                   jumpsUsed: 0,
                   isGrounded: true,
                   lastJumpTimeMs: 0,
+                  lastLandedTimeMs: 0,
+                  lastShiftTimeMs: 0,
                 };
                 playerRef.current = defaultPlayer;
                 setPlayer(defaultPlayer);
@@ -887,6 +919,8 @@ export default function App() {
                   jumpsUsed: 0,
                   isGrounded: true,
                   lastJumpTimeMs: 0,
+                  lastLandedTimeMs: 0,
+                  lastShiftTimeMs: 0,
                 };
                 playerRef.current = defaultPlayer;
                 setPlayer(defaultPlayer);

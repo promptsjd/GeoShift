@@ -2,8 +2,11 @@ import {
   DifficultyConfig,
   PhysicsConfig,
   PlayerEntity,
+  ShapeAnimationProfile,
   VerticalTierId,
 } from '../config/types';
+import { DEFAULT_SHAPE_ANIMATION_PROFILE } from '../config/visualConfig';
+import { computePlayerVisualTransform } from './animationEngine';
 
 /**
  * Computes the current horizontal scroll speed (px/sec) and speed level (1-based)
@@ -35,24 +38,55 @@ export function getSpeedProgression(
 }
 
 /**
+ * Solves total airborne time (seconds) from current height & upward velocity until height reaches 0.
+ * h(t) = h0 + v*t - 0.5*g*t^2 = 0  =>  t = (v + sqrt(v^2 + 2*g*h0)) / g
+ */
+export function solveRemainingAirTimeSec(
+  heightAboveFloor: number,
+  velocityY: number,
+  gravity: number
+): number {
+  const h0 = Math.max(0, heightAboveFloor);
+  const discriminant = Math.max(0, velocityY * velocityY + 2 * gravity * h0);
+  return (velocityY + Math.sqrt(discriminant)) / gravity;
+}
+
+/**
  * Triggers a Single Jump (from ground) or Double Jump (in mid-air).
- * - Single Jump reaches an apex bottom height of ~118px (cleanly above the 82px Middle pillar).
+ * - Single Jump reaches an apex bottom height of ~118px (cleanly above the 82px Middle pillar)
+ *   and schedules `singleJumpRotations * 360°` spin from the active shape's animation profile.
  * - Double Jump dynamically computes upward velocity so the player's bottom always reaches
- *   an apex of ~210px above the floor (cleanly above the 166px Top pillar), even if the player
- *   double-taps Space rapidly right after leaving the ground.
+ *   an apex of ~212px above the floor (cleanly above the 166px Top pillar), and schedules
+ *   `doubleJumpRotations * 360°` total spin so the shape lands upright on the floor.
  */
 export function triggerPlayerJump(
   player: PlayerEntity,
   physics: PhysicsConfig,
-  nowMs: number
+  nowMs: number,
+  animProfile: ShapeAnimationProfile = DEFAULT_SHAPE_ANIMATION_PROFILE
 ): PlayerEntity {
   if (player.isGrounded || player.jumpsUsed === 0) {
+    const velocityY = physics.singleJumpVelocity;
+    const expectedFlightDurationSec = solveRemainingAirTimeSec(
+      0,
+      velocityY,
+      physics.gravity
+    );
+    const targetRot =
+      animProfile.singleJumpRotations *
+      Math.PI *
+      2 *
+      animProfile.rotationDirection;
+
     return {
       ...player,
-      velocityY: physics.singleJumpVelocity,
+      velocityY,
       jumpsUsed: 1,
       isGrounded: false,
       lastJumpTimeMs: nowMs,
+      jumpStartRotationRad: 0,
+      targetJumpRotationRad: targetRot,
+      expectedFlightDurationSec,
     };
   }
 
@@ -66,13 +100,38 @@ export function triggerPlayerJump(
     const requiredVelocity = Math.sqrt(
       2 * physics.gravity * remainingHeightNeeded
     );
+    const velocityY = Math.max(
+      physics.doubleJumpVelocity * 0.85,
+      requiredVelocity
+    );
+
+    // Capture current mid-air rotation angle so the transition into double-jump spin is seamless
+    const currentTransform = computePlayerVisualTransform(
+      player,
+      animProfile,
+      nowMs
+    );
+    const expectedFlightDurationSec = solveRemainingAirTimeSec(
+      player.heightAboveFloor,
+      velocityY,
+      physics.gravity
+    );
+    const totalDoubleJumpTurns = Math.max(
+      1,
+      animProfile.doubleJumpRotations
+    );
+    const targetRot =
+      totalDoubleJumpTurns * Math.PI * 2 * animProfile.rotationDirection;
 
     return {
       ...player,
-      velocityY: Math.max(physics.doubleJumpVelocity * 0.85, requiredVelocity),
+      velocityY,
       jumpsUsed: player.jumpsUsed + 1,
       isGrounded: false,
       lastJumpTimeMs: nowMs,
+      jumpStartRotationRad: currentTransform.rotationRad,
+      targetJumpRotationRad: targetRot,
+      expectedFlightDurationSec,
     };
   }
 
@@ -80,21 +139,25 @@ export function triggerPlayerJump(
 }
 
 /**
- * Advances vertical jump physics by dtSeconds.
+ * Advances vertical jump physics by dtSeconds and records floor touchdown timestamp
+ * so the landing squash-and-rebound spring fires automatically.
  */
 export function stepPlayerPhysics(
   player: PlayerEntity,
   physics: PhysicsConfig,
-  dtSeconds: number
+  dtSeconds: number,
+  nowMs: number = performance.now()
 ): PlayerEntity {
   if (player.isGrounded && player.velocityY === 0 && player.heightAboveFloor === 0) {
     return player;
   }
 
+  const wasGrounded = player.isGrounded;
   let nextHeight = player.heightAboveFloor + player.velocityY * dtSeconds;
   let nextVelocity = player.velocityY - physics.gravity * dtSeconds;
   let isGrounded = false;
   let jumpsUsed = player.jumpsUsed;
+  let lastLandedTimeMs = player.lastLandedTimeMs;
 
   // Ceiling clamp so double-jumping never clips above the play tunnel
   const maxHeightAboveFloor = physics.corridorHeight - physics.playerRadius * 2 - 4;
@@ -111,6 +174,9 @@ export function stepPlayerPhysics(
     nextVelocity = 0;
     isGrounded = true;
     jumpsUsed = 0;
+    if (!wasGrounded) {
+      lastLandedTimeMs = nowMs;
+    }
   }
 
   return {
@@ -119,6 +185,7 @@ export function stepPlayerPhysics(
     velocityY: nextVelocity,
     isGrounded,
     jumpsUsed,
+    lastLandedTimeMs,
   };
 }
 

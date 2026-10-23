@@ -1,6 +1,11 @@
 import React from 'react';
-import { COLOR_REGISTRY } from '../config/colorRegistry';
+import { COLOR_REGISTRY, getColorById } from '../config/colorRegistry';
 import { COLOR_SWATCH_SHAPE, SHAPE_REGISTRY } from '../config/shapeRegistry';
+import {
+  FacetedButton,
+  FacetedWindow,
+  TactileShapeSvg,
+} from './TactileUI';
 
 interface EngineConfigModalProps {
   enabledColorIds: string[];
@@ -29,45 +34,57 @@ export const EngineConfigModal: React.FC<EngineConfigModalProps> = ({
   onClose,
 }) => {
   const playableShapes = SHAPE_REGISTRY.filter((s) => s.isPlayable);
+  const cyanColor = getColorById('cyan');
+  const mutedColor = {
+    id: 'muted',
+    name: 'Muted',
+    hex: '#334155',
+    strokeHex: '#64748B',
+    innerFacetHex: '#94A3B8',
+    innerFacetAlpha: 0.35,
+    enabledByDefault: false,
+  };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-xs p-6">
-      <div className="w-full max-w-3xl max-h-[88vh] overflow-y-auto rounded-2xl bg-slate-900 border border-slate-800 p-8 shadow-2xl">
-        <div className="flex items-center justify-between gap-4 pb-6 border-b border-slate-800">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/84 backdrop-blur-xs p-6">
+      <FacetedWindow maxWidthClass="max-w-3xl" className="max-h-[88vh] overflow-y-auto">
+        <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/15">
           <div>
-            <h2 className="text-2xl font-bold text-slate-100 font-display">
+            <h2 className="text-3xl font-bold text-white font-display tracking-wider">
               Modular Engine Registry
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-300 mt-1">
               Toggle active colors and playable shapes dynamically—no hardcoded dependencies.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
+            <FacetedButton
+              variant="slate"
+              size="sm"
               onClick={onResetDefaults}
-              className="px-3.5 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="text-base font-bold whitespace-nowrap shrink-0"
             >
               Reset Defaults
-            </button>
-            <button
-              type="button"
+            </FacetedButton>
+            <FacetedButton
+              variant="emerald"
+              size="sm"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-950 bg-slate-100 hover:bg-white rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="text-base font-bold whitespace-nowrap shrink-0"
             >
               Done
-            </button>
+            </FacetedButton>
           </div>
         </div>
 
-        <div className="space-y-8 mt-6">
+        <div className="space-y-6 mt-5">
           {/* 1. Active Colors Registry */}
           <section>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-200">
-                01. Color Registry (Minimum 2 Active · Uses Dedicated {COLOR_SWATCH_SHAPE.name})
+              <h3 className="text-xl font-bold font-display tracking-wide text-white">
+                01. Color Registry (Minimum 2 Active)
               </h3>
-              <span className="text-xs text-slate-400 font-mono-tabular">
+              <span className="text-xs text-slate-300 font-mono-tabular">
                 {enabledColorIds.length} active
               </span>
             </div>
@@ -75,31 +92,29 @@ export const EngineConfigModal: React.FC<EngineConfigModalProps> = ({
               {COLOR_REGISTRY.map((color) => {
                 const active = enabledColorIds.includes(color.id);
                 return (
-                  <button
+                  <FacetedButton
                     key={color.id}
-                    type="button"
+                    variant={active ? 'indigo' : 'slate'}
+                    size="sm"
                     onClick={() => onToggleColorId(color.id)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                      active
-                        ? 'bg-slate-800/90 border-slate-600 text-slate-100'
-                        : 'bg-slate-950/40 border-slate-800/80 text-slate-500 hover:border-slate-700'
-                    }`}
                   >
-                    <svg width={24} height={24} viewBox="0 0 24 24" className="shrink-0">
-                      <path
-                        d={COLOR_SWATCH_SHAPE.getSvgPath(24)}
-                        fill={color.hex}
+                    <div className="w-full flex items-center gap-3 text-left">
+                      <TactileShapeSvg
+                        shape={COLOR_SWATCH_SHAPE}
+                        color={color}
+                        size={28}
+                        isActive={active}
                       />
-                    </svg>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold truncate">
-                        {color.name}
-                      </div>
-                      <div className="text-[11px] font-mono-tabular text-slate-400">
-                        {active ? 'Enabled' : 'Disabled'}
+                      <div className="min-w-0">
+                        <div className="text-base font-bold font-display truncate">
+                          {color.name}
+                        </div>
+                        <div className="text-[11px] font-mono-tabular text-slate-300">
+                          {active ? 'Enabled' : 'Disabled'}
+                        </div>
                       </div>
                     </div>
-                  </button>
+                  </FacetedButton>
                 );
               })}
             </div>
@@ -108,10 +123,10 @@ export const EngineConfigModal: React.FC<EngineConfigModalProps> = ({
           {/* 2. Playable Shapes Registry */}
           <section>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-200">
+              <h3 className="text-xl font-bold font-display tracking-wide text-white">
                 02. Playable Shape Registry (Minimum 2 Active)
               </h3>
-              <span className="text-xs text-slate-400 font-mono-tabular">
+              <span className="text-xs text-slate-300 font-mono-tabular">
                 {enabledShapeIds.length} active
               </span>
             </div>
@@ -119,60 +134,55 @@ export const EngineConfigModal: React.FC<EngineConfigModalProps> = ({
               {playableShapes.map((shape) => {
                 const active = enabledShapeIds.includes(shape.id);
                 return (
-                  <button
+                  <FacetedButton
                     key={shape.id}
-                    type="button"
+                    variant={active ? 'indigo' : 'slate'}
+                    size="sm"
                     onClick={() => onToggleShapeId(shape.id)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                      active
-                        ? 'bg-slate-800/90 border-slate-600 text-slate-100'
-                        : 'bg-slate-950/40 border-slate-800/80 text-slate-500 hover:border-slate-700'
-                    }`}
                   >
-                    <svg width={28} height={28} viewBox="0 0 28 28" className="shrink-0">
-                      <path
-                        d={shape.getSvgPath(28)}
-                        fill={active ? '#38BDF8' : '#475569'}
+                    <div className="w-full flex items-center gap-3 text-left">
+                      <TactileShapeSvg
+                        shape={shape}
+                        color={active ? cyanColor : mutedColor}
+                        size={30}
+                        isActive={active}
                       />
-                    </svg>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold truncate">
-                        {shape.name}
-                      </div>
-                      <div className="text-[11px] font-mono-tabular text-slate-400">
-                        {active ? 'Enabled' : 'Optional Expansion'}
+                      <div className="min-w-0">
+                        <div className="text-base font-bold font-display truncate">
+                          {shape.name}
+                        </div>
+                        <div className="text-[11px] font-mono-tabular text-slate-300">
+                          {active ? 'Enabled' : 'Optional'}
+                        </div>
                       </div>
                     </div>
-                  </button>
+                  </FacetedButton>
                 );
               })}
             </div>
           </section>
 
           {/* 3. Visual Trajectory Aid */}
-          <section className="flex items-center justify-between pt-4 border-t border-slate-800">
+          <section className="flex items-center justify-between pt-4 border-t border-white/15">
             <div>
-              <h3 className="text-sm font-semibold text-slate-200">
+              <h3 className="text-xl font-bold font-display tracking-wide text-white">
                 03. Jump Take-Off Floor Markers
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-300 mt-0.5">
                 Displays a subtle floor chevron ahead of Middle and Top obstacles indicating where to initiate your jump arc.
               </p>
             </div>
-            <button
-              type="button"
+            <FacetedButton
+              variant={showJumpGuides ? 'cyan' : 'slate'}
+              size="sm"
               onClick={onToggleJumpGuides}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                showJumpGuides
-                  ? 'bg-sky-400 text-slate-950'
-                  : 'bg-slate-800 text-slate-300'
-              }`}
+              className="text-base font-bold whitespace-nowrap shrink-0"
             >
               {showJumpGuides ? 'Guides Shown' : 'Guides Hidden'}
-            </button>
+            </FacetedButton>
           </section>
         </div>
-      </div>
+      </FacetedWindow>
     </div>
   );
 };
