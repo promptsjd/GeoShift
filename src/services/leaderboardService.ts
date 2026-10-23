@@ -1,11 +1,28 @@
-import { LeaderboardEntry } from '../config/types';
+import { CompetitiveModeId, LeaderboardEntry } from '../config/types';
 
 const LEADERBOARD_STORAGE_KEY = 'geoshift_leaderboard_v1';
-const BEST_SCORE_STORAGE_KEY = 'geoshift_best_score_v1';
-const SESSION_BEST_SCORE_KEY = 'geoshift_session_best_score_v1';
+const BEST_SCORE_STORAGE_PREFIX = 'geoshift_best_score_v1';
+const SESSION_BEST_SCORE_PREFIX = 'geoshift_session_best_score_v1';
 const LAST_PLAYER_NAME_KEY = 'geoshift_last_custom_player_name_v1';
-const MAX_LEADERBOARD_ENTRIES = 10;
+const MAX_LEADERBOARD_ENTRIES_PER_MODE = 10;
 const MAX_NAME_LENGTH = 15;
+
+/**
+ * Normalizes legacy or display mode strings into canonical CompetitiveModeId ('GAME' | 'JUMP_MATCH')
+ */
+export function normalizeCompetitiveModeId(rawModeId?: string): CompetitiveModeId {
+  if (!rawModeId) return 'GAME';
+  const upper = rawModeId.toUpperCase();
+  if (upper === 'JUMP_MATCH' || upper === 'JUMP MODE' || upper === 'JUMP') {
+    return 'JUMP_MATCH';
+  }
+  return 'GAME';
+}
+
+function getBestScoreKey(modeId: CompetitiveModeId, isSession: boolean): string {
+  const base = isSession ? SESSION_BEST_SCORE_PREFIX : BEST_SCORE_STORAGE_PREFIX;
+  return modeId === 'GAME' ? base : `${base}_${modeId}`;
+}
 
 export function loadLeaderboard(): LeaderboardEntry[] {
   try {
@@ -13,27 +30,36 @@ export function loadLeaderboard(): LeaderboardEntry[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (item): item is LeaderboardEntry =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof item.score === 'number' &&
-          typeof item.playerName === 'string'
-      )
-      .sort((a, b) => b.score - a.score)
-      .slice(0, MAX_LEADERBOARD_ENTRIES);
+    const valid = parsed.filter(
+      (item): item is LeaderboardEntry =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof item.score === 'number' &&
+        typeof item.playerName === 'string'
+    );
+
+    const runEntries = valid
+      .filter((e) => normalizeCompetitiveModeId(e.modeId) === 'GAME')
+      .sort((a, b) => b.score - a.score || b.speedLevelReached - a.speedLevelReached)
+      .slice(0, MAX_LEADERBOARD_ENTRIES_PER_MODE);
+
+    const jumpEntries = valid
+      .filter((e) => normalizeCompetitiveModeId(e.modeId) === 'JUMP_MATCH')
+      .sort((a, b) => b.score - a.score || b.speedLevelReached - a.speedLevelReached)
+      .slice(0, MAX_LEADERBOARD_ENTRIES_PER_MODE);
+
+    return [...runEntries, ...jumpEntries];
   } catch {
     return [];
   }
 }
 
-export function loadBestScore(): number {
+export function loadBestScore(modeId: CompetitiveModeId = 'GAME'): number {
   let localBest = 0;
   let sessionBest = 0;
 
   try {
-    const rawLocal = localStorage.getItem(BEST_SCORE_STORAGE_KEY);
+    const rawLocal = localStorage.getItem(getBestScoreKey(modeId, false));
     if (rawLocal !== null) {
       const parsed = Number(rawLocal);
       if (Number.isFinite(parsed) && parsed > 0) {
@@ -45,7 +71,7 @@ export function loadBestScore(): number {
   }
 
   try {
-    const rawSession = sessionStorage.getItem(SESSION_BEST_SCORE_KEY);
+    const rawSession = sessionStorage.getItem(getBestScoreKey(modeId, true));
     if (rawSession !== null) {
       const parsed = Number(rawSession);
       if (Number.isFinite(parsed) && parsed > 0) {
@@ -56,26 +82,30 @@ export function loadBestScore(): number {
     // ignore storage errors
   }
 
-  const leaderboardEntries = loadLeaderboard();
-  const leaderboardBest =
-    leaderboardEntries.length > 0 ? leaderboardEntries[0].score : 0;
+  const modeEntries = loadLeaderboard().filter(
+    (e) => normalizeCompetitiveModeId(e.modeId) === modeId
+  );
+  const leaderboardBest = modeEntries.length > 0 ? modeEntries[0].score : 0;
 
   return Math.max(localBest, sessionBest, leaderboardBest, 0);
 }
 
-export function saveBestScore(candidateScore: number): number {
+export function saveBestScore(
+  candidateScore: number,
+  modeId: CompetitiveModeId = 'GAME'
+): number {
   const sanitized = Math.max(0, Math.floor(candidateScore));
-  const currentBest = loadBestScore();
+  const currentBest = loadBestScore(modeId);
   const nextBest = Math.max(currentBest, sanitized);
 
   try {
-    sessionStorage.setItem(SESSION_BEST_SCORE_KEY, String(nextBest));
+    sessionStorage.setItem(getBestScoreKey(modeId, true), String(nextBest));
   } catch {
     // ignore storage errors
   }
 
   try {
-    localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(nextBest));
+    localStorage.setItem(getBestScoreKey(modeId, false), String(nextBest));
   } catch {
     // ignore storage errors
   }
@@ -100,20 +130,29 @@ export function saveLeaderboardEntry(
 
   // Industry-standard arcade fallback if saved without typing a name
   const resolvedName = trimmedInput.length > 0 ? trimmedInput : 'Player 1';
+  const canonicalMode = normalizeCompetitiveModeId(entry.modeId);
 
   const newRecord: LeaderboardEntry = {
     ...entry,
+    modeId: canonicalMode,
     playerName: resolvedName,
     id: `score-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     createdAtISO: new Date().toISOString(),
   };
 
-  const updated = [...existing, newRecord]
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.speedLevelReached - a.speedLevelReached;
-    })
-    .slice(0, MAX_LEADERBOARD_ENTRIES);
+  const all = [...existing, newRecord];
+
+  const runTop = all
+    .filter((e) => normalizeCompetitiveModeId(e.modeId) === 'GAME')
+    .sort((a, b) => b.score - a.score || b.speedLevelReached - a.speedLevelReached)
+    .slice(0, MAX_LEADERBOARD_ENTRIES_PER_MODE);
+
+  const jumpTop = all
+    .filter((e) => normalizeCompetitiveModeId(e.modeId) === 'JUMP_MATCH')
+    .sort((a, b) => b.score - a.score || b.speedLevelReached - a.speedLevelReached)
+    .slice(0, MAX_LEADERBOARD_ENTRIES_PER_MODE);
+
+  const updated = [...runTop, ...jumpTop];
 
   try {
     localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(updated));
@@ -121,24 +160,44 @@ export function saveLeaderboardEntry(
     // ignore storage errors
   }
 
-  saveBestScore(entry.score);
+  saveBestScore(entry.score, canonicalMode);
 
   return updated;
 }
 
-export function clearLeaderboard(): LeaderboardEntry[] {
+export function clearLeaderboard(modeId?: CompetitiveModeId): LeaderboardEntry[] {
+  if (!modeId) {
+    try {
+      localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
+      localStorage.removeItem(getBestScoreKey('GAME', false));
+      localStorage.removeItem(getBestScoreKey('JUMP_MATCH', false));
+    } catch {
+      // ignore
+    }
+    try {
+      sessionStorage.removeItem(getBestScoreKey('GAME', true));
+      sessionStorage.removeItem(getBestScoreKey('JUMP_MATCH', true));
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
+  const remaining = loadLeaderboard().filter(
+    (e) => normalizeCompetitiveModeId(e.modeId) !== modeId
+  );
   try {
-    localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
-    localStorage.removeItem(BEST_SCORE_STORAGE_KEY);
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(remaining));
+    localStorage.removeItem(getBestScoreKey(modeId, false));
   } catch {
     // ignore
   }
   try {
-    sessionStorage.removeItem(SESSION_BEST_SCORE_KEY);
+    sessionStorage.removeItem(getBestScoreKey(modeId, true));
   } catch {
     // ignore
   }
-  return [];
+  return remaining;
 }
 
 /**

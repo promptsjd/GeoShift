@@ -57,6 +57,73 @@ export const SOUND_EFFECT_REGISTRY: Record<SoundEventId, SoundEffectDefinition> 
     ],
   },
 
+  MATCH_SUCCESS: {
+    id: 'MATCH_SUCCESS',
+    label: 'Target Matched',
+    description: 'Bright 2-note ascending chime played when landing with the matching shape and color.',
+    enabled: true,
+    steps: [
+      {
+        waveform: 'square',
+        startFrequencyHz: 523.25,
+        endFrequencyHz: 659.25,
+        durationSec: 0.065,
+        startOffsetSec: 0,
+        peakGain: 0.09,
+      },
+      {
+        waveform: 'square',
+        startFrequencyHz: 659.25,
+        endFrequencyHz: 880,
+        durationSec: 0.09,
+        startOffsetSec: 0.065,
+        peakGain: 0.1,
+      },
+    ],
+  },
+
+  LIFE_LOST: {
+    id: 'LIFE_LOST',
+    label: 'Life Lost',
+    description: 'Short low 8-bit buzz played when landing without matching the target.',
+    enabled: true,
+    steps: [
+      {
+        waveform: 'sawtooth',
+        startFrequencyHz: 290,
+        endFrequencyHz: 185,
+        durationSec: 0.14,
+        startOffsetSec: 0,
+        peakGain: 0.11,
+      },
+      {
+        waveform: 'square',
+        startFrequencyHz: 185,
+        endFrequencyHz: 130,
+        durationSec: 0.16,
+        startOffsetSec: 0.12,
+        peakGain: 0.11,
+      },
+    ],
+  },
+
+  COUNTDOWN_TICK: {
+    id: 'COUNTDOWN_TICK',
+    label: 'Countdown Tick',
+    description: 'Crisp arcade beep played on each 3-2-1 countdown step.',
+    enabled: true,
+    steps: [
+      {
+        waveform: 'square',
+        startFrequencyHz: 440,
+        endFrequencyHz: 480,
+        durationSec: 0.07,
+        startOffsetSec: 0,
+        peakGain: 0.08,
+      },
+    ],
+  },
+
   GAME_OVER: {
     id: 'GAME_OVER',
     label: 'Game Over',

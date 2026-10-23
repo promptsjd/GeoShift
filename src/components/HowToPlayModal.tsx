@@ -14,6 +14,7 @@ import {
 interface HowToPlayModalProps {
   onClose: () => void;
   onStartGame: () => void;
+  onStartJumpMode?: () => void;
 }
 
 /**
@@ -60,6 +61,7 @@ const MouseClickHint: React.FC = () => (
 export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
   onClose,
   onStartGame,
+  onStartJumpMode,
 }) => {
   const defaultShapes = SHAPE_REGISTRY.filter(
     (s) => s.isPlayable && s.enabledByDefault
@@ -237,7 +239,20 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
         </div>
 
         {/* Footer CTA */}
-        <div className="pt-4 border-t border-white/15 flex justify-end">
+        <div className="pt-4 border-t border-white/15 flex items-center justify-end gap-3">
+          {onStartJumpMode && (
+            <FacetedButton
+              variant="cyan"
+              size="md"
+              onClick={() => {
+                onClose();
+                onStartJumpMode();
+              }}
+              className="text-lg font-bold whitespace-nowrap shrink-0"
+            >
+              Start Jump Mode
+            </FacetedButton>
+          )}
           <FacetedButton
             variant="emerald"
             size="md"
@@ -247,7 +262,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
             }}
             className="text-lg font-bold whitespace-nowrap shrink-0"
           >
-            Start Game
+            Start Run Mode
           </FacetedButton>
         </div>
       </FacetedWindow>

@@ -21,6 +21,7 @@ import {
 import { getActiveShapes, SHAPE_REGISTRY } from './config/shapeRegistry';
 import { getTierById, VERTICAL_TIER_REGISTRY } from './config/tierRegistry';
 import {
+  CompetitiveModeId,
   FailureDiagnostic,
   GameModeProfile,
   GameState,
@@ -30,14 +31,22 @@ import {
   PlayerEntity,
   PracticeSubModeId,
   RunModeId,
+  TargetPromptEntity,
 } from './config/types';
 import { getShapeAnimationProfile } from './config/visualConfig';
+import {
+  createNextTargetPrompt,
+  estimateAutoJumpFlightProgress,
+  evaluateAutoJumpLanding,
+  getAutoJumpProgression,
+} from './engine/autoJumpEngine';
 import { shiftClampedIndex } from './engine/carouselUtils';
 import { evaluatePlayerObstacleInteraction } from './engine/collisionEvaluator';
 import { createNextObstacle } from './engine/obstacleSpawner';
 import {
   getSpeedProgression,
   stepPlayerPhysics,
+  triggerAutoSingleHighJump,
   triggerPlayerJump,
 } from './engine/physicsEngine';
 import {
@@ -45,6 +54,7 @@ import {
   getLastPlayerName,
   loadBestScore,
   loadLeaderboard,
+  normalizeCompetitiveModeId,
   saveBestScore,
   saveLeaderboardEntry,
 } from './services/leaderboardService';
@@ -77,12 +87,16 @@ export default function App() {
     () => getModeProfileById(runModeId),
     [runModeId]
   );
+  const activeCompetitiveModeId: CompetitiveModeId =
+    runModeId === 'JUMP_MATCH' ? 'JUMP_MATCH' : 'GAME';
   const physics = DEFAULT_PHYSICS_CONFIG;
 
   // Game Loop & UI State
   const [gameState, setGameState] = useState<GameState>('TITLE_MENU');
   const [activeModal, setActiveModal] = useState<ActiveModal>('NONE');
   const [score, setScore] = useState<number>(0);
+  const [livesRemaining, setLivesRemaining] = useState<number>(3);
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
   const [speedUpFlashProgress, setSpeedUpFlashProgress] = useState<number>(0);
   const [failureDiagnostic, setFailureDiagnostic] =
     useState<FailureDiagnostic | null>(null);
@@ -91,11 +105,17 @@ export default function App() {
   const [practiceRetryMessage, setPracticeRetryMessage] = useState<
     string | null
   >(null);
+  const [lifeNoticeMessage, setLifeNoticeMessage] = useState<string | null>(
+    null
+  );
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(() =>
     loadLeaderboard()
   );
-  const [persistedBestScore, setPersistedBestScore] = useState<number>(() =>
-    loadBestScore()
+  const [persistedRunBest, setPersistedRunBest] = useState<number>(() =>
+    loadBestScore('GAME')
+  );
+  const [persistedJumpBest, setPersistedJumpBest] = useState<number>(() =>
+    loadBestScore('JUMP_MATCH')
   );
   const [isMuted, setIsMuted] = useState<boolean>(() => loadSoundMuted());
   const isMutedRef = useRef<boolean>(isMuted);
@@ -174,11 +194,30 @@ export default function App() {
       defaultShp
     );
   });
+
+  const [targetPrompt, setTargetPrompt] = useState<TargetPromptEntity | null>(
+    () => {
+      const defaultCol = activeColors[initialColorIdx]?.id || activeColors[0].id;
+      const defaultShp = activeShapes[initialShapeIdx]?.id || activeShapes[0].id;
+      return createNextTargetPrompt({
+        sequenceNumber: 1,
+        currentPlayerColorId: defaultCol,
+        currentPlayerShapeId: defaultShp,
+        previousTarget: null,
+        activeColors,
+        activeShapes,
+      });
+    }
+  );
+
   const [effects, setEffects] = useState<GateClearEffect[]>([]);
 
   // Mutable refs for 60fps requestAnimationFrame loop
   const playerRef = useRef<PlayerEntity>(player);
   const obstaclesRef = useRef<ObstacleEntity[]>(obstacles);
+  const targetPromptRef = useRef<TargetPromptEntity | null>(targetPrompt);
+  const livesRef = useRef<number>(livesRemaining);
+  const lastAutoJumpLandedMsRef = useRef<number>(0);
   const effectsRef = useRef<GateClearEffect[]>(effects);
   const scoreRef = useRef<number>(score);
   const batchTargetRef = useRef<number>(5);
@@ -187,6 +226,8 @@ export default function App() {
 
   playerRef.current = player;
   obstaclesRef.current = obstacles;
+  targetPromptRef.current = targetPrompt;
+  livesRef.current = livesRemaining;
   effectsRef.current = effects;
   scoreRef.current = score;
 
@@ -195,19 +236,58 @@ export default function App() {
     [score, activeModeProfile.difficulty]
   );
 
-  const bestScore = useMemo(() => {
-    const topStored = leaderboard.length > 0 ? leaderboard[0].score : 0;
-    const currentGameScore = activeModeProfile.isPractice ? 0 : score;
-    return Math.max(topStored, persistedBestScore, currentGameScore);
-  }, [leaderboard, persistedBestScore, score, activeModeProfile.isPractice]);
+  const autoJumpInfo = useMemo(
+    () => getAutoJumpProgression(score, activeModeProfile.difficulty),
+    [score, activeModeProfile.difficulty]
+  );
 
-  // Automatically persist any new high score for the session and browser
+  const activeLevel = activeModeProfile.isAutoJumpMode
+    ? autoJumpInfo.speedLevel
+    : speedInfo.speedLevel;
+
+  const bestScore = useMemo(() => {
+    const modeEntries = leaderboard.filter(
+      (e) => normalizeCompetitiveModeId(e.modeId) === activeCompetitiveModeId
+    );
+    const topStored = modeEntries.length > 0 ? modeEntries[0].score : 0;
+    const persisted =
+      activeCompetitiveModeId === 'JUMP_MATCH'
+        ? persistedJumpBest
+        : persistedRunBest;
+    const currentGameScore = activeModeProfile.isPractice ? 0 : score;
+    return Math.max(topStored, persisted, currentGameScore);
+  }, [
+    leaderboard,
+    activeCompetitiveModeId,
+    persistedJumpBest,
+    persistedRunBest,
+    score,
+    activeModeProfile.isPractice,
+  ]);
+
+  // Automatically persist any new high score for the active competitive mode
   useEffect(() => {
-    if (bestScore > persistedBestScore) {
-      const saved = saveBestScore(bestScore);
-      setPersistedBestScore(saved);
+    if (activeModeProfile.isPractice) return;
+    if (
+      activeCompetitiveModeId === 'JUMP_MATCH' &&
+      bestScore > persistedJumpBest
+    ) {
+      const saved = saveBestScore(bestScore, 'JUMP_MATCH');
+      setPersistedJumpBest(saved);
+    } else if (
+      activeCompetitiveModeId === 'GAME' &&
+      bestScore > persistedRunBest
+    ) {
+      const saved = saveBestScore(bestScore, 'GAME');
+      setPersistedRunBest(saved);
     }
-  }, [bestScore, persistedBestScore]);
+  }, [
+    activeCompetitiveModeId,
+    activeModeProfile.isPractice,
+    bestScore,
+    persistedJumpBest,
+    persistedRunBest,
+  ]);
 
   useEffect(() => {
     setPlayer((prev) => ({
@@ -217,7 +297,7 @@ export default function App() {
     }));
   }, [activeColors.length, activeShapes.length]);
 
-  // Launch any mode (Standard Game or one of the 4 Practice Modes)
+  // Launch any mode (Run Mode, Jump Mode, or one of the 4 Practice Modes)
   const launchModeRun = useCallback(
     (targetModeId: RunModeId) => {
       const profile = getModeProfileById(targetModeId);
@@ -238,23 +318,19 @@ export default function App() {
         lastShiftTimeMs: 0,
       };
 
-      const initialObs = buildInitialObstaclesForMode(
-        profile,
-        lockedColorId,
-        lockedShapeId
-      );
-      nextSeqRef.current = initialObs.length + 1;
+      const startLives = profile.initialLives || 1;
+      livesRef.current = startLives;
+      setLivesRemaining(startLives);
+      setLifeNoticeMessage(null);
+
+      playerRef.current = startPlayer;
+      effectsRef.current = [];
+      scoreRef.current = 0;
       speedFlashRef.current = 0;
       batchTargetRef.current = profile.batchObstacleTarget || 5;
 
-      playerRef.current = startPlayer;
-      obstaclesRef.current = initialObs;
-      effectsRef.current = [];
-      scoreRef.current = 0;
-
       setRunModeId(targetModeId);
       setPlayer(startPlayer);
-      setObstacles(initialObs);
       setEffects([]);
       setScore(0);
       setSpeedUpFlashProgress(0);
@@ -263,7 +339,38 @@ export default function App() {
       setIsProximityPaused(false);
       setPracticeRetryMessage(null);
       setActiveModal('NONE');
-      setGameState('PLAYING');
+
+      if (profile.isAutoJumpMode) {
+        const firstTarget = createNextTargetPrompt({
+          sequenceNumber: 1,
+          currentPlayerColorId: lockedColorId,
+          currentPlayerShapeId: lockedShapeId,
+          previousTarget: null,
+          activeColors,
+          activeShapes,
+        });
+        nextSeqRef.current = 2;
+        targetPromptRef.current = firstTarget;
+        setTargetPrompt(firstTarget);
+      } else {
+        const initialObs = buildInitialObstaclesForMode(
+          profile,
+          lockedColorId,
+          lockedShapeId
+        );
+        nextSeqRef.current = initialObs.length + 1;
+        obstaclesRef.current = initialObs;
+        setObstacles(initialObs);
+      }
+
+      if (profile.useStartCountdown) {
+        setCountdownValue(3);
+        setGameState('COUNTDOWN');
+        playSoundEvent('COUNTDOWN_TICK', isMutedRef.current);
+      } else {
+        setCountdownValue(null);
+        setGameState('PLAYING');
+      }
     },
     [
       activeColors,
@@ -273,6 +380,34 @@ export default function App() {
       initialShapeIdx,
     ]
   );
+
+  // 3 - 2 - 1 Countdown Timer for Jump Mode
+  useEffect(() => {
+    if (gameState !== 'COUNTDOWN' || activeModal !== 'NONE') {
+      return;
+    }
+
+    if (countdownValue === null || countdownValue <= 0) {
+      setCountdownValue(null);
+      lastAutoJumpLandedMsRef.current = 0;
+      setGameState('PLAYING');
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (countdownValue > 1) {
+        setCountdownValue(countdownValue - 1);
+        playSoundEvent('COUNTDOWN_TICK', isMutedRef.current);
+      } else {
+        setCountdownValue(null);
+        // Set lastAutoJumpLandedMsRef far enough in the past so the first double jump starts immediately when countdown finishes
+        lastAutoJumpLandedMsRef.current = performance.now() - 1000;
+        setGameState('PLAYING');
+      }
+    }, 750);
+
+    return () => window.clearTimeout(timer);
+  }, [activeModal, countdownValue, gameState]);
 
   // Continue practicing the current Practice mode with no obstacle limit after the first 5
   const handleContinueCurrentPractice = useCallback(() => {
@@ -296,7 +431,10 @@ export default function App() {
   // Clamped Selector Shift Handlers (hard stop at ends, no wrap-around loop)
   const handleShiftColor = useCallback(
     (delta: number) => {
-      if (!activeModeProfile.allowColorShift && gameState === 'PLAYING') {
+      if (
+        !activeModeProfile.allowColorShift &&
+        (gameState === 'PLAYING' || gameState === 'COUNTDOWN')
+      ) {
         return;
       }
       const current = playerRef.current;
@@ -322,7 +460,10 @@ export default function App() {
 
   const handleShiftShape = useCallback(
     (delta: number) => {
-      if (!activeModeProfile.allowShapeShift && gameState === 'PLAYING') {
+      if (
+        !activeModeProfile.allowShapeShift &&
+        (gameState === 'PLAYING' || gameState === 'COUNTDOWN')
+      ) {
         return;
       }
       const current = playerRef.current;
@@ -404,12 +545,17 @@ export default function App() {
         return;
       }
 
-      // Spacebar or Enter starts / restarts Game on Game Over (and Enter on Title Menu)
+      // Spacebar or Enter restarts the active competitive mode on Game Over
       if (
-        (gameState === 'GAME_OVER' &&
-          (e.code === 'Space' || e.code === 'Enter')) ||
-        (gameState === 'TITLE_MENU' && e.code === 'Enter')
+        gameState === 'GAME_OVER' &&
+        (e.code === 'Space' || e.code === 'Enter')
       ) {
+        e.preventDefault();
+        launchModeRun(runModeId);
+        return;
+      }
+
+      if (gameState === 'TITLE_MENU' && e.code === 'Enter') {
         e.preventDefault();
         launchModeRun('GAME');
         return;
@@ -473,9 +619,10 @@ export default function App() {
     handleShiftColor,
     handleShiftShape,
     launchModeRun,
+    runModeId,
   ]);
 
-  // Main 60fps Game & Practice Loop
+  // Main 60fps Game, Jump Mode & Practice Loop
   useEffect(() => {
     if (gameState !== 'PLAYING' || activeModal !== 'NONE') {
       return;
@@ -489,6 +636,194 @@ export default function App() {
       lastTimeMs = nowMs;
       const dt = Math.min(0.05, Math.max(0.001, rawDt));
 
+      // ========================================================================
+      // BRANCH A: AUTOMATIC SINGLE HIGH-JUMP MATCH MODE ('JUMP_MATCH')
+      // ========================================================================
+      if (activeModeProfile.isAutoJumpMode) {
+        const currentScore = scoreRef.current;
+        const autoProg = getAutoJumpProgression(
+          currentScore,
+          activeModeProfile.difficulty
+        );
+        let workingPlayer = playerRef.current;
+        const activeShape =
+          activeShapes[workingPlayer.shapeIndex] || activeShapes[0];
+        const animProfile = getShapeAnimationProfile(activeShape.id);
+
+        // 1. If grounded and ground settle pause has elapsed, launch a single continuous jump to targetApexHeight
+        if (workingPlayer.isGrounded) {
+          const sinceLandedMs = nowMs - (lastAutoJumpLandedMsRef.current || 0);
+          if (sinceLandedMs >= autoProg.groundSettlePauseMs) {
+            workingPlayer = triggerAutoSingleHighJump(
+              workingPlayer,
+              physics,
+              autoProg.targetApexHeight,
+              nowMs,
+              animProfile,
+              autoProg.flightTimeScale
+            );
+            playSoundEvent('JUMP_SINGLE', isMutedRef.current);
+          }
+        }
+
+        const wasGrounded = workingPlayer.isGrounded;
+        const nextPlayer = stepPlayerPhysics(
+          workingPlayer,
+          physics,
+          dt * autoProg.flightTimeScale,
+          nowMs
+        );
+        playerRef.current = nextPlayer;
+
+        const nextEffects: GateClearEffect[] = [];
+
+        // 3. Check if the entity just touched down on the floor from its jump
+        if (!wasGrounded && nextPlayer.isGrounded && targetPromptRef.current) {
+          lastAutoJumpLandedMsRef.current = nowMs;
+          const currentTarget = targetPromptRef.current;
+          const evalResult = evaluateAutoJumpLanding({
+            player: nextPlayer,
+            target: currentTarget,
+            activeColors,
+            activeShapes,
+          });
+
+          const landedColor =
+            activeColors[nextPlayer.colorIndex] || activeColors[0];
+          const landedShape =
+            activeShapes[nextPlayer.shapeIndex] || activeShapes[0];
+
+          if (evalResult.matched) {
+            playSoundEvent('MATCH_SUCCESS', isMutedRef.current);
+            const updatedScore = currentScore + 1;
+            scoreRef.current = updatedScore;
+            setScore(updatedScore);
+            setLifeNoticeMessage(null);
+
+            const targetColor = getColorById(currentTarget.colorId);
+            // Ripple effect on the player and on the right-side target station
+            nextEffects.push(
+              {
+                id: `fx-player-${nowMs}`,
+                x: physics.playerX,
+                y: physics.corridorHeight - physics.playerRadius,
+                colorHex: targetColor.hex,
+                shapeId: currentTarget.shapeId,
+                progress: 0,
+              },
+              {
+                id: `fx-target-${nowMs}`,
+                x: autoProg.targetCenterX,
+                y: physics.corridorHeight * 0.5,
+                colorHex: targetColor.hex,
+                shapeId: currentTarget.shapeId,
+                progress: 0,
+              }
+            );
+
+            // Every 10 correct matches, pulse the arena border as the jump height reduces slightly
+            if (
+              updatedScore %
+                activeModeProfile.difficulty.obstaclesPerSpeedStep ===
+              0
+            ) {
+              speedFlashRef.current = 0.01;
+            }
+
+            // Spawn the next target immediately for the upcoming jump
+            const nextTarget = createNextTargetPrompt({
+              sequenceNumber: nextSeqRef.current++,
+              currentPlayerColorId: landedColor.id,
+              currentPlayerShapeId: landedShape.id,
+              previousTarget: {
+                ...currentTarget,
+                lastOutcome: 'MATCHED',
+                lastOutcomeTimeMs: nowMs,
+              },
+              activeColors,
+              activeShapes,
+            });
+            targetPromptRef.current = nextTarget;
+            setTargetPrompt(nextTarget);
+          } else {
+            // Failed to match Color & Shape on landing -> Lose 1 Life
+            const remaining = Math.max(0, livesRef.current - 1);
+            livesRef.current = remaining;
+            setLivesRemaining(remaining);
+
+            if (remaining <= 0) {
+              playSoundEvent('GAME_OVER', isMutedRef.current);
+              setPlayer(nextPlayer);
+              setFailureDiagnostic(evalResult.diagnostic);
+              setGameState('GAME_OVER');
+              return;
+            } else {
+              playSoundEvent('LIFE_LOST', isMutedRef.current);
+              setLifeNoticeMessage(
+                `Life Lost (${remaining} Left) · ${evalResult.diagnostic.headline}`
+              );
+              // Give a fresh target for the next jump
+              const nextTarget = createNextTargetPrompt({
+                sequenceNumber: nextSeqRef.current++,
+                currentPlayerColorId: landedColor.id,
+                currentPlayerShapeId: landedShape.id,
+                previousTarget: {
+                  ...currentTarget,
+                  lastOutcome: 'MISSED',
+                  lastOutcomeTimeMs: nowMs,
+                },
+                activeColors,
+                activeShapes,
+              });
+              targetPromptRef.current = nextTarget;
+              setTargetPrompt(nextTarget);
+            }
+          }
+        } else if (targetPromptRef.current) {
+          // Update flight progress arc on the target station
+          const progress = estimateAutoJumpFlightProgress(
+            nextPlayer,
+            physics,
+            autoProg.targetApexHeight
+          );
+          const updatedTarget: TargetPromptEntity = {
+            ...targetPromptRef.current,
+            flightProgress: progress,
+          };
+          targetPromptRef.current = updatedTarget;
+          setTargetPrompt(updatedTarget);
+        }
+
+        // Advance visual ripple effects & 10-match border flash
+        const steppedEffects = [
+          ...effectsRef.current
+            .map((fx) => ({
+              ...fx,
+              progress: fx.progress + dt * 2.4,
+            }))
+            .filter((fx) => fx.progress < 1),
+          ...nextEffects,
+        ];
+
+        if (speedFlashRef.current > 0) {
+          speedFlashRef.current = Math.min(1, speedFlashRef.current + dt * 1.6);
+          if (speedFlashRef.current >= 1) {
+            speedFlashRef.current = 0;
+          }
+          setSpeedUpFlashProgress(speedFlashRef.current);
+        }
+
+        effectsRef.current = steppedEffects;
+        setPlayer(nextPlayer);
+        setEffects(steppedEffects);
+
+        animationFrameId = requestAnimationFrame(stepFrame);
+        return;
+      }
+
+      // ========================================================================
+      // BRANCH B: CORRIDOR RUN MODE ('GAME') & PRACTICE MODES
+      // ========================================================================
       // 1. Step Player Jump Physics & Landing Detection
       const nextPlayer = stepPlayerPhysics(
         playerRef.current,
@@ -724,24 +1059,31 @@ export default function App() {
       playerName,
       score,
       obstaclesCleared: score,
-      speedLevelReached: speedInfo.speedLevel,
-      modeId: 'Game',
+      speedLevelReached: activeLevel,
+      modeId: activeCompetitiveModeId,
     });
     setLeaderboard(updated);
-    setPersistedBestScore(loadBestScore());
+    setPersistedRunBest(loadBestScore('GAME'));
+    setPersistedJumpBest(loadBestScore('JUMP_MATCH'));
     setScoreSaved(true);
   };
 
-  const handleClearLeaderboard = () => {
-    setLeaderboard(clearLeaderboard());
-    setPersistedBestScore(0);
+  const handleClearLeaderboard = (modeToClear: CompetitiveModeId) => {
+    setLeaderboard(clearLeaderboard(modeToClear));
+    if (modeToClear === 'JUMP_MATCH') {
+      setPersistedJumpBest(0);
+    } else {
+      setPersistedRunBest(0);
+    }
   };
 
   const activeColor = activeColors[player.colorIndex] || activeColors[0];
   const isColorCarouselDisabled =
-    gameState === 'PLAYING' && !activeModeProfile.allowColorShift;
+    (gameState === 'PLAYING' || gameState === 'COUNTDOWN') &&
+    !activeModeProfile.allowColorShift;
   const isShapeCarouselDisabled =
-    gameState === 'PLAYING' && !activeModeProfile.allowShapeShift;
+    (gameState === 'PLAYING' || gameState === 'COUNTDOWN') &&
+    !activeModeProfile.allowShapeShift;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#06080E] text-slate-100">
@@ -752,7 +1094,10 @@ export default function App() {
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
         onSelectModal={(modal) => {
-          if (modal !== 'NONE' && gameState === 'PLAYING') {
+          if (
+            modal !== 'NONE' &&
+            (gameState === 'PLAYING' || gameState === 'COUNTDOWN')
+          ) {
             setGameState(
               activeModeProfile.isPractice ? 'PRACTICE_COMPLETE' : 'PAUSED'
             );
@@ -766,8 +1111,12 @@ export default function App() {
           } else if (gameState === 'PRACTICE_COMPLETE') {
             setActiveModal('NONE');
             handleContinueCurrentPractice();
+          } else if (gameState === 'PLAYING' || gameState === 'COUNTDOWN') {
+            launchModeRun(runModeId);
           } else {
-            launchModeRun('GAME');
+            launchModeRun(
+              activeModeProfile.isPractice ? 'GAME' : runModeId
+            );
           }
         }}
       />
@@ -868,6 +1217,11 @@ export default function App() {
               modeProfile={activeModeProfile}
               player={player}
               obstacles={obstacles}
+              targetPrompt={targetPrompt}
+              targetCenterX={autoJumpInfo.targetCenterX}
+              livesRemaining={livesRemaining}
+              countdownValue={countdownValue}
+              lifeNoticeMessage={lifeNoticeMessage}
               effects={effects}
               activeColors={activeColors}
               activeShapes={activeShapes}
@@ -885,11 +1239,14 @@ export default function App() {
               activeModeProfile={activeModeProfile}
               score={score}
               bestScore={bestScore}
-              speedLevel={speedInfo.speedLevel}
+              speedLevel={activeLevel}
+              livesRemaining={livesRemaining}
               failureDiagnostic={failureDiagnostic}
               defaultPlayerName={getLastPlayerName()}
               scoreSaved={scoreSaved}
               onStartStandardGame={() => launchModeRun('GAME')}
+              onStartJumpMode={() => launchModeRun('JUMP_MATCH')}
+              onRestartCurrentMode={() => launchModeRun(runModeId)}
               onOpenPracticeMenu={() => {
                 const defaultPlayer: PlayerEntity = {
                   colorIndex: initialColorIdx,
@@ -905,6 +1262,7 @@ export default function App() {
                 playerRef.current = defaultPlayer;
                 setPlayer(defaultPlayer);
                 setPracticeRetryMessage(null);
+                setLifeNoticeMessage(null);
                 setIsProximityPaused(false);
                 setGameState('PRACTICE_MENU');
               }}
@@ -925,10 +1283,17 @@ export default function App() {
                 playerRef.current = defaultPlayer;
                 setPlayer(defaultPlayer);
                 setPracticeRetryMessage(null);
+                setLifeNoticeMessage(null);
                 setIsProximityPaused(false);
                 setGameState('TITLE_MENU');
               }}
-              onResumeGame={() => setGameState('PLAYING')}
+              onResumeGame={() =>
+                setGameState(
+                  countdownValue !== null && countdownValue > 0
+                    ? 'COUNTDOWN'
+                    : 'PLAYING'
+                )
+              }
               onSaveScore={handleSaveScore}
               onOpenLeaderboard={() => setActiveModal('LEADERBOARD')}
             />
@@ -941,12 +1306,14 @@ export default function App() {
         <HowToPlayModal
           onClose={() => setActiveModal('NONE')}
           onStartGame={() => launchModeRun('GAME')}
+          onStartJumpMode={() => launchModeRun('JUMP_MATCH')}
         />
       )}
 
       {activeModal === 'LEADERBOARD' && (
         <LeaderboardModal
           entries={leaderboard}
+          initialTab={activeCompetitiveModeId}
           onClearLeaderboard={handleClearLeaderboard}
           onClose={() => setActiveModal('NONE')}
         />

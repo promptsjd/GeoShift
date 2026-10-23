@@ -63,15 +63,15 @@ export function triggerPlayerJump(
   player: PlayerEntity,
   physics: PhysicsConfig,
   nowMs: number,
-  animProfile: ShapeAnimationProfile = DEFAULT_SHAPE_ANIMATION_PROFILE
+  animProfile: ShapeAnimationProfile = DEFAULT_SHAPE_ANIMATION_PROFILE,
+  timeScale: number = 1
 ): PlayerEntity {
+  const safeScale = Math.max(0.25, timeScale);
+
   if (player.isGrounded || player.jumpsUsed === 0) {
     const velocityY = physics.singleJumpVelocity;
-    const expectedFlightDurationSec = solveRemainingAirTimeSec(
-      0,
-      velocityY,
-      physics.gravity
-    );
+    const expectedFlightDurationSec =
+      solveRemainingAirTimeSec(0, velocityY, physics.gravity) / safeScale;
     const targetRot =
       animProfile.singleJumpRotations *
       Math.PI *
@@ -111,11 +111,12 @@ export function triggerPlayerJump(
       animProfile,
       nowMs
     );
-    const expectedFlightDurationSec = solveRemainingAirTimeSec(
-      player.heightAboveFloor,
-      velocityY,
-      physics.gravity
-    );
+    const expectedFlightDurationSec =
+      solveRemainingAirTimeSec(
+        player.heightAboveFloor,
+        velocityY,
+        physics.gravity
+      ) / safeScale;
     const totalDoubleJumpTurns = Math.max(
       1,
       animProfile.doubleJumpRotations
@@ -136,6 +137,49 @@ export function triggerPlayerJump(
   }
 
   return player;
+}
+
+/**
+ * Triggers a single continuous jump from the ground to a specific `targetApexHeight` above the floor
+ * in one go (used by Jump Mode, where jump height starts high and reduces slightly every 10 matches).
+ */
+export function triggerAutoSingleHighJump(
+  player: PlayerEntity,
+  physics: PhysicsConfig,
+  targetApexHeight: number,
+  nowMs: number,
+  animProfile: ShapeAnimationProfile = DEFAULT_SHAPE_ANIMATION_PROFILE,
+  timeScale: number = 1
+): PlayerEntity {
+  const safeScale = Math.max(0.25, timeScale);
+  const clampedApex = Math.max(
+    80,
+    Math.min(
+      physics.corridorHeight - physics.playerRadius * 2 - 6,
+      targetApexHeight
+    )
+  );
+  const velocityY = Math.sqrt(2 * physics.gravity * clampedApex);
+  const expectedFlightDurationSec =
+    solveRemainingAirTimeSec(0, velocityY, physics.gravity) / safeScale;
+
+  const targetRot =
+    animProfile.singleJumpRotations *
+    Math.PI *
+    2 *
+    animProfile.rotationDirection;
+
+  return {
+    ...player,
+    heightAboveFloor: 0,
+    velocityY,
+    jumpsUsed: 1,
+    isGrounded: false,
+    lastJumpTimeMs: nowMs,
+    jumpStartRotationRad: 0,
+    targetJumpRotationRad: targetRot,
+    expectedFlightDurationSec,
+  };
 }
 
 /**

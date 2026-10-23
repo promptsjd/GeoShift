@@ -180,3 +180,55 @@ export const FacetedKeycap: React.FC<FacetedKeycapProps> = ({ label }) => {
     </kbd>
   );
 };
+
+/**
+ * 5. Geometric Triad Lives Indicator (Triangle in Cyan, Circle in Green, Star in Yellow)
+ * Uses the exact 3 shapes and 3 colors from the Main Menu emblem.
+ * Dims each shape progressively as the player loses lives.
+ */
+interface GeometricLivesTriadProps {
+  livesRemaining: number;
+  maxLives?: number;
+  triadShapes: Array<{
+    id: string;
+    shape: ShapeDefinition;
+    color: ColorDefinition;
+  }>;
+  size?: number;
+}
+
+export const GeometricLivesTriad: React.FC<GeometricLivesTriadProps> = ({
+  livesRemaining,
+  maxLives = 3,
+  triadShapes,
+  size = 24,
+}) => {
+  return (
+    <div
+      className="inline-flex items-center gap-2.5"
+      aria-label={`Lives remaining: ${livesRemaining} of ${maxLives}`}
+    >
+      {triadShapes.slice(0, maxLives).map((item, idx) => {
+        const isAlive = idx < livesRemaining;
+        return (
+          <div
+            key={item.id}
+            className={`transition-all duration-200 flex items-center justify-center ${
+              isAlive
+                ? 'opacity-100 scale-100 drop-shadow-[0_0_8px_rgba(255,255,255,0.22)]'
+                : 'opacity-20 grayscale scale-85'
+            }`}
+            title={isAlive ? `Life ${idx + 1}: Active` : `Life ${idx + 1}: Lost`}
+          >
+            <TactileShapeSvg
+              shape={item.shape}
+              color={item.color}
+              size={idx === 1 ? Math.round(size * 1.15) : size}
+              isActive={isAlive}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+};

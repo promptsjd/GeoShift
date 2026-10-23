@@ -7,6 +7,7 @@
 export type GameState =
   | 'TITLE_MENU'
   | 'PRACTICE_MENU'
+  | 'COUNTDOWN'
   | 'PLAYING'
   | 'PAUSED'
   | 'PRACTICE_COMPLETE'
@@ -16,8 +17,11 @@ export type VerticalTierId = 'GROUND' | 'MIDDLE' | 'TOP';
 
 export type PracticeSubModeId = 'SHAPE' | 'COLOR' | 'JUMP' | 'FULL';
 
+export type CompetitiveModeId = 'GAME' | 'JUMP_MATCH';
+
 export type RunModeId =
   | 'GAME'
+  | 'JUMP_MATCH'
   | 'PRACTICE_SHAPE'
   | 'PRACTICE_COLOR'
   | 'PRACTICE_JUMP'
@@ -184,15 +188,23 @@ export interface DifficultyConfig {
 export interface GameModeProfile {
   id: RunModeId;
   isPractice: boolean;
+  /** True for the automatic double-jump mode where the player matches Color & Shape before landing */
+  isAutoJumpMode?: boolean;
   practiceSubMode?: PracticeSubModeId;
   name: string;
   shortLabel: string;
+  /** Short difficulty & mechanic subtitle shown on the Main Menu button */
+  menuSubtitle?: string;
   description: string;
   allowColorShift: boolean;
   allowShapeShift: boolean;
   allowJump: boolean;
   allowedTiers: VerticalTierId[];
-  /** Number of obstacles per practice round (null for endless Game mode) */
+  /** Number of lives before Game Over (defaults to 1 for standard corridor run, 3 for Jump Mode) */
+  initialLives?: number;
+  /** Whether launching this mode begins with a 3-2-1 arena countdown */
+  useStartCountdown?: boolean;
+  /** Number of obstacles per practice round (null for endless competitive modes) */
   batchObstacleTarget: number | null;
   /** If true, mistakes rewind the current obstacle instead of triggering Game Over */
   forgivingRetryOnFail: boolean;
@@ -205,6 +217,18 @@ export interface GameModeProfile {
   /** Distance (px) in front of playerCenterX where the obstacle left edge stops in Full Practice */
   proximityStopOffsetPx: number;
   difficulty: DifficultyConfig;
+}
+
+export interface TargetPromptEntity {
+  id: string;
+  sequenceNumber: number;
+  colorId: string;
+  shapeId: string;
+  /** 0..1 normalized progress of the current automatic double-jump flight */
+  flightProgress: number;
+  /** Last landing outcome for brief visual feedback on the target station */
+  lastOutcome?: 'NONE' | 'MATCHED' | 'MISSED';
+  lastOutcomeTimeMs?: number;
 }
 
 export interface PhysicsConfig {
@@ -322,6 +346,9 @@ export type SoundEventId =
   | 'SHIFT'
   | 'JUMP_SINGLE'
   | 'JUMP_DOUBLE'
+  | 'MATCH_SUCCESS'
+  | 'LIFE_LOST'
+  | 'COUNTDOWN_TICK'
   | 'GAME_OVER';
 
 export interface SoundToneStep {

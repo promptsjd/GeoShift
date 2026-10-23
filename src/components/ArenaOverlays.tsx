@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { getColorById } from '../config/colorRegistry';
 import {
+  getModeProfileById,
   getRemainingPracticeModes,
   PRACTICE_MODE_PROFILES,
 } from '../config/difficultyConfig';
@@ -14,6 +15,7 @@ import {
 import {
   FacetedButton,
   FacetedWindow,
+  GeometricLivesTriad,
   TactileShapeSvg,
 } from './TactileUI';
 
@@ -23,10 +25,13 @@ interface ArenaOverlaysProps {
   score: number;
   bestScore: number;
   speedLevel: number;
+  livesRemaining: number;
   failureDiagnostic: FailureDiagnostic | null;
   defaultPlayerName: string;
   scoreSaved: boolean;
   onStartStandardGame: () => void;
+  onStartJumpMode: () => void;
+  onRestartCurrentMode: () => void;
   onOpenPracticeMenu: () => void;
   onStartPracticeSubMode: (subMode: PracticeSubModeId) => void;
   onContinueCurrentPractice: () => void;
@@ -74,10 +79,13 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
   activeModeProfile,
   score,
   speedLevel,
+  livesRemaining,
   failureDiagnostic,
   defaultPlayerName,
   scoreSaved,
   onStartStandardGame,
+  onStartJumpMode,
+  onRestartCurrentMode,
   onOpenPracticeMenu,
   onStartPracticeSubMode,
   onContinueCurrentPractice,
@@ -92,72 +100,116 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
     setPlayerName(defaultPlayerName);
   }, [defaultPlayerName, gameState]);
 
-  if (gameState === 'PLAYING') {
+  if (gameState === 'PLAYING' || gameState === 'COUNTDOWN') {
     return null;
   }
 
-  // 1. Main Start Screen: Dual-Layer Faceted Window + Faceted Action Cards
+  const heroGreen = getColorById('green');
+  const heroCyan = getColorById('cyan');
+  const heroYellow = getColorById('yellow');
+
+  const triadShapes = [
+    {
+      id: 'triad-triangle',
+      shape: getShapeById('triangle'),
+      color: heroCyan,
+    },
+    {
+      id: 'triad-circle',
+      shape: getShapeById('circle'),
+      color: heroGreen,
+    },
+    {
+      id: 'triad-star',
+      shape: getShapeById('star'),
+      color: heroYellow,
+    },
+  ];
+
+  // 1. Main Start Screen: Dual-Layer Faceted Window + Both Competitive Modes + Practice Mode
   if (gameState === 'TITLE_MENU') {
-    const heroGreen = getColorById('green');
-    const heroCyan = getColorById('cyan');
-    const heroYellow = getColorById('yellow');
+    const runProfile = getModeProfileById('GAME');
+    const jumpProfile = getModeProfileById('JUMP_MATCH');
 
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/82 backdrop-blur-[3px] p-6">
-        <FacetedWindow maxWidthClass="max-w-lg" className="text-center">
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/82 backdrop-blur-[3px] p-5">
+        <FacetedWindow maxWidthClass="max-w-2xl" className="text-center">
           {/* Decorative Bevelled Geometric Triad */}
-          <div className="flex items-center justify-center gap-3 mb-3">
+          <div className="flex items-center justify-center gap-3 mb-2">
             <TactileShapeSvg
               shape={getShapeById('triangle')}
               color={heroCyan}
-              size={30}
+              size={28}
             />
             <TactileShapeSvg
               shape={getShapeById('circle')}
               color={heroGreen}
-              size={38}
+              size={36}
             />
             <TactileShapeSvg
               shape={getShapeById('star')}
               color={heroYellow}
-              size={30}
+              size={28}
             />
           </div>
 
           <h1 className="text-5xl font-bold text-white font-display tracking-wider">
             GeoShift
           </h1>
-          <p className="text-sm text-slate-200 mt-2 leading-relaxed max-w-md mx-auto">
-            Shift color, shape, and vertical jump height to clear approaching geometric gates.
+          <p className="text-sm text-slate-200 mt-1.5 leading-relaxed max-w-lg mx-auto">
+            Choose a mode below to test your geometric reflexes.
           </p>
 
-          <div className="grid grid-cols-2 gap-4 mt-7">
+          {/* Two Primary Competitive Game Modes: Run Mode vs Jump Mode */}
+          <div className="grid grid-cols-2 gap-4 mt-5">
             <FacetedButton
               variant="emerald"
               size="lg"
               onClick={onStartStandardGame}
             >
-              <div className="flex flex-col items-center text-center py-1">
+              <div className="flex flex-col items-center text-center py-0.5">
                 <span className="text-3xl font-bold font-display tracking-wider">
-                  Game
+                  {runProfile.name}
                 </span>
-                <span className="text-sm font-medium font-display tracking-wide text-emerald-100 mt-0.5">
-                  Start Progressive Run
+                <span className="text-sm font-bold font-display tracking-wide text-emerald-100 mt-1">
+                  {runProfile.menuSubtitle}
                 </span>
               </div>
             </FacetedButton>
 
             <FacetedButton
-              variant="indigo"
+              variant="cyan"
               size="lg"
+              onClick={onStartJumpMode}
+            >
+              <div className="flex flex-col items-center text-center py-0.5">
+                <span className="text-3xl font-bold font-display tracking-wider">
+                  {jumpProfile.name}
+                </span>
+                <span className="text-sm font-bold font-display tracking-wide text-sky-100 mt-1">
+                  {jumpProfile.menuSubtitle}
+                </span>
+              </div>
+            </FacetedButton>
+          </div>
+
+          {/* Practice Mode Selector Button */}
+          <div className="mt-3.5">
+            <FacetedButton
+              variant="indigo"
+              size="md"
+              fullWidth
               onClick={onOpenPracticeMenu}
             >
-              <div className="flex flex-col items-center text-center py-1">
-                <span className="text-3xl font-bold font-display tracking-wider">
-                  Practice
+              <div className="flex items-center justify-center gap-3 py-0.5">
+                <span className="text-2xl font-bold font-display tracking-wider">
+                  Practice Modes
                 </span>
-                <span className="text-sm font-medium font-display tracking-wide text-indigo-100 mt-0.5">
-                  Shape · Color · Jump · Full
+                <span className="text-slate-300" aria-hidden="true">
+                  ·
+                </span>
+                <span className="text-sm font-medium font-display tracking-wide text-indigo-100">
+                  Step-by-Step Training: Shape · Color · Jump · Full
                 </span>
               </div>
             </FacetedButton>
@@ -307,31 +359,41 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
               Main Menu
             </FacetedButton>
 
-            <FacetedButton
-              variant="emerald"
-              size="sm"
-              onClick={onStartStandardGame}
-              className="text-base font-bold whitespace-nowrap shrink-0"
-            >
-              Start Game Now
-            </FacetedButton>
+            <div className="flex items-center gap-2.5">
+              <FacetedButton
+                variant="cyan"
+                size="sm"
+                onClick={onStartJumpMode}
+                className="text-base font-bold whitespace-nowrap shrink-0"
+              >
+                Start Jump Mode
+              </FacetedButton>
+              <FacetedButton
+                variant="emerald"
+                size="sm"
+                onClick={onStartStandardGame}
+                className="text-base font-bold whitespace-nowrap shrink-0"
+              >
+                Start Run Mode
+              </FacetedButton>
+            </div>
           </div>
         </FacetedWindow>
       </div>
     );
   }
 
-  // 4. Game Paused Overlay (Shown when pressing P during Game)
+  // 4. Game Paused Overlay (Shown when pressing P during Run Mode or Jump Mode)
   if (gameState === 'PAUSED') {
     return (
       <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/82 backdrop-blur-[3px] p-6">
         <FacetedWindow maxWidthClass="max-w-md" className="text-center">
           <h2 className="text-3xl font-bold text-white font-display tracking-wider">
-            Game Paused
+            {activeModeProfile.name} Paused
           </h2>
           <p className="text-sm text-slate-300 mt-1">
-            Cleared: <span className="font-mono-tabular text-emerald-400 font-bold">{score}</span>
-            {!activeModeProfile.isPractice && ` · Speed Tier ${speedLevel}`}
+            Score: <span className="font-mono-tabular text-emerald-400 font-bold">{score}</span>
+            {!activeModeProfile.isPractice && ` · Level ${speedLevel}`}
           </p>
 
           <div className="flex flex-col gap-3 mt-5">
@@ -348,10 +410,10 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
               variant="slate"
               size="md"
               fullWidth
-              onClick={onStartStandardGame}
+              onClick={onRestartCurrentMode}
               className="text-lg font-bold whitespace-nowrap"
             >
-              Restart Game
+              Restart {activeModeProfile.name}
             </FacetedButton>
           </div>
 
@@ -378,29 +440,47 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
     );
   }
 
-  // 5. GAME_OVER State (Standard Game Run)
-  const checkItems = [
-    {
-      label: 'Color',
-      matched: failureDiagnostic ? failureDiagnostic.colorMatched : false,
-    },
-    {
-      label: 'Shape',
-      matched: failureDiagnostic ? failureDiagnostic.shapeMatched : false,
-    },
-    {
-      label: 'Jump',
-      matched: failureDiagnostic ? failureDiagnostic.heightMatched : false,
-    },
-  ];
+  // 5. GAME_OVER State (Run Mode or Jump Mode)
+  const isJumpMode = Boolean(activeModeProfile.isAutoJumpMode);
+
+  const checkItems = isJumpMode
+    ? [
+        {
+          label: 'Color',
+          matched: failureDiagnostic ? failureDiagnostic.colorMatched : false,
+        },
+        {
+          label: 'Shape',
+          matched: failureDiagnostic ? failureDiagnostic.shapeMatched : false,
+        },
+      ]
+    : [
+        {
+          label: 'Color',
+          matched: failureDiagnostic ? failureDiagnostic.colorMatched : false,
+        },
+        {
+          label: 'Shape',
+          matched: failureDiagnostic ? failureDiagnostic.shapeMatched : false,
+        },
+        {
+          label: 'Jump',
+          matched: failureDiagnostic ? failureDiagnostic.heightMatched : false,
+        },
+      ];
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#06080E]/85 backdrop-blur-[3px] p-4">
       <FacetedWindow maxWidthClass="max-w-md">
-        <div className="flex items-center justify-between gap-4 border-b border-white/15 pb-3.5">
-          <h2 className="text-4xl font-bold text-white font-display tracking-wider">
-            Game Over
-          </h2>
+        <div className="flex items-center justify-between gap-4 border-b border-white/15 pb-3">
+          <div>
+            <h2 className="text-4xl font-bold text-white font-display tracking-wider">
+              Game Over
+            </h2>
+            <div className="text-xs font-display tracking-wide text-slate-300 mt-0.5">
+              {activeModeProfile.name} · Level {speedLevel}
+            </div>
+          </div>
           <div className="text-right shrink-0">
             <div className="text-xs font-display tracking-wide text-slate-300">
               Final Score
@@ -411,8 +491,27 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
           </div>
         </div>
 
-        {/* Faceted Diagnostic Cards for Color, Shape, Jump */}
-        <div className="grid grid-cols-3 gap-3 my-4">
+        {/* In Jump Mode, show the 3 Geometric Lives (dimmed on Game Over) */}
+        {isJumpMode && (
+          <div className="flex items-center justify-between px-3.5 py-2 mt-3 rounded-xl bg-[#0B0F1A] border border-[#384766]">
+            <span className="text-sm font-bold font-display tracking-wider text-slate-300">
+              All 3 Lives Lost
+            </span>
+            <GeometricLivesTriad
+              livesRemaining={livesRemaining}
+              maxLives={3}
+              triadShapes={triadShapes}
+              size={20}
+            />
+          </div>
+        )}
+
+        {/* Faceted Diagnostic Cards */}
+        <div
+          className={`grid ${
+            isJumpMode ? 'grid-cols-2' : 'grid-cols-3'
+          } gap-3 my-3.5`}
+        >
           {checkItems.map((item) => (
             <div
               key={item.label}
@@ -439,8 +538,8 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
           ))}
         </div>
 
-        {/* Save to localStorage Leaderboard, Practice & Play Again */}
-        <div className="flex flex-col gap-3 pt-3.5 border-t border-white/15">
+        {/* Save to localStorage Leaderboard, Main Menu & Play Again */}
+        <div className="flex flex-col gap-3 pt-3 border-t border-white/15">
           {!scoreSaved ? (
             <form
               onSubmit={(e) => {
@@ -469,7 +568,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
             </form>
           ) : (
             <div className="flex items-center justify-between text-sm font-display tracking-wide text-emerald-400 py-1">
-              <span>Score Saved to Leaderboard</span>
+              <span>Score Saved to {activeModeProfile.name} Leaderboard</span>
               <button
                 type="button"
                 onClick={onOpenLeaderboard}
@@ -482,17 +581,17 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <FacetedButton
-              variant="indigo"
+              variant="slate"
               size="md"
-              onClick={onOpenPracticeMenu}
+              onClick={onReturnToMainMenu}
               className="text-lg font-bold whitespace-nowrap"
             >
-              Practice
+              Main Menu
             </FacetedButton>
             <FacetedButton
-              variant="emerald"
+              variant={isJumpMode ? 'cyan' : 'emerald'}
               size="md"
-              onClick={onStartStandardGame}
+              onClick={onRestartCurrentMode}
               className="text-lg font-bold whitespace-nowrap"
             >
               Play Again (Space)
