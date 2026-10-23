@@ -17,6 +17,42 @@ interface HowToPlayModalProps {
 }
 
 /**
+ * Compact "Or [Mouse Cursor Icon]" badge indicating direct mouse click selection
+ */
+const MouseClickHint: React.FC = () => (
+  <div className="flex items-center justify-center gap-2 text-sm font-display font-bold tracking-wider text-slate-300">
+    <span>Or</span>
+    <span
+      aria-label="Mouse Click"
+      title="Mouse Click"
+      className="relative inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg bg-[#111827] border-2 border-[#475569] text-white shadow-[0_3px_0_0_#06080E]"
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-[2px] left-[2px] right-[5px] bottom-[5px] rounded bg-[#64748B]/35"
+      />
+      <svg
+        width={16}
+        height={16}
+        viewBox="0 0 24 24"
+        fill="none"
+        className="relative z-10"
+        aria-hidden="true"
+      >
+        {/* Crisp Pointer Cursor with Click Rays */}
+        <path
+          d="M5 3L19 10.5L12.5 13L16 19.5L13.5 21L10 14.5L5.5 18.5L5 3Z"
+          fill="#F8FAFC"
+          stroke="#0F172A"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  </div>
+);
+
+/**
  * Tactile Arcade Studio Rules & Controls Modal
  * Uses `TactileShapeSvg` for every shape and color swatch so all 5 colors
  * and all 5 shapes display crisp outer borders and inner concentric facets.
@@ -89,8 +125,8 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                 </div>
               </div>
 
-              {/* Symbolic Key Prompts */}
-              <div className="flex flex-col gap-3">
+              {/* Symbolic Key Prompts + Or Mouse Click */}
+              <div className="flex flex-col items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <FacetedKeycap label="W" />
                   <span className="text-slate-400 font-bold">/</span>
@@ -100,6 +136,9 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                   <FacetedKeycap label="S" />
                   <span className="text-slate-400 font-bold">/</span>
                   <FacetedKeycap label="↓" />
+                </div>
+                <div className="pt-1">
+                  <MouseClickHint />
                 </div>
               </div>
             </div>
@@ -150,6 +189,11 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                   <span className="text-slate-400 font-bold">/</span>
                   <FacetedKeycap label="→" />
                 </div>
+              </div>
+
+              {/* Or Mouse Click Hint under Color Controls */}
+              <div className="mt-3.5">
+                <MouseClickHint />
               </div>
             </div>
           </div>
