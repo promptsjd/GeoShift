@@ -531,31 +531,40 @@ export default function App() {
         return;
       }
 
-      // Spacebar continues practicing the same mode when Practice window is open
-      if (gameState === 'PRACTICE_COMPLETE' && e.code === 'Space') {
+      // Enter continues practicing the same mode when Practice window is open
+      if (
+        gameState === 'PRACTICE_COMPLETE' &&
+        (e.code === 'Enter' || e.code === 'NumpadEnter')
+      ) {
         e.preventDefault();
         handleContinueCurrentPractice();
         return;
       }
 
-      // Spacebar continues / resumes the game when Game Pause window is open
-      if (gameState === 'PAUSED' && e.code === 'Space') {
+      // Enter continues / resumes the game when Game Pause window is open
+      if (
+        gameState === 'PAUSED' &&
+        (e.code === 'Enter' || e.code === 'NumpadEnter')
+      ) {
         e.preventDefault();
         setGameState('PLAYING');
         return;
       }
 
-      // Spacebar or Enter restarts the active competitive mode on Game Over
+      // Enter restarts the active competitive mode on Game Over
       if (
         gameState === 'GAME_OVER' &&
-        (e.code === 'Space' || e.code === 'Enter')
+        (e.code === 'Enter' || e.code === 'NumpadEnter')
       ) {
         e.preventDefault();
         launchModeRun(runModeId);
         return;
       }
 
-      if (gameState === 'TITLE_MENU' && e.code === 'Enter') {
+      if (
+        gameState === 'TITLE_MENU' &&
+        (e.code === 'Enter' || e.code === 'NumpadEnter')
+      ) {
         e.preventDefault();
         launchModeRun('GAME');
         return;

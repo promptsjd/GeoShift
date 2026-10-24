@@ -304,7 +304,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
                   : `${activeModeProfile.shortLabel} Practice Paused`}
               </h2>
               <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                Press Spacebar to continue practicing {activeModeProfile.shortLabel} with no limit (press P anytime to reopen this window), or switch modes below.
+                Press Enter to continue practicing {activeModeProfile.shortLabel} with no limit (press P anytime to reopen this window), or switch modes below.
               </p>
             </div>
             <span className="text-lg font-mono-tabular font-bold text-emerald-400 shrink-0">
@@ -312,7 +312,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
             </span>
           </div>
 
-          {/* Primary Action: Continue Practicing Same Mode (Spacebar) */}
+          {/* Primary Action: Continue Practicing Same Mode (Enter) */}
           <div className="mt-4">
             <FacetedButton
               variant="cyan"
@@ -321,7 +321,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
               onClick={onContinueCurrentPractice}
               className="text-lg font-bold whitespace-nowrap"
             >
-              Continue Practicing {activeModeProfile.shortLabel} (Press Spacebar)
+              Continue Practicing {activeModeProfile.shortLabel} (Press Enter)
             </FacetedButton>
           </div>
 
@@ -404,7 +404,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
               onClick={onResumeGame}
               className="text-lg font-bold whitespace-nowrap"
             >
-              Continue (Press Spacebar)
+              Continue (Press Enter)
             </FacetedButton>
             <FacetedButton
               variant="slate"
@@ -594,7 +594,7 @@ export const ArenaOverlays: React.FC<ArenaOverlaysProps> = ({
               onClick={onRestartCurrentMode}
               className="text-lg font-bold whitespace-nowrap"
             >
-              Play Again (Space)
+              Play Again (Enter)
             </FacetedButton>
           </div>
         </div>
